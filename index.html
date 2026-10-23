@@ -226,7 +226,7 @@ every('nuke',Math.max(7,21-skillLevels.nuke*2.4),()=>{let radius=165+skillLevels
 every('heal',Math.max(1.5,5-skillLevels.heal*.6),()=>p.hp=Math.min(p.max,p.hp+2+skillLevels.heal*2));
 if(skillLevels.orb)for(let e of [...enemies])if(distance(e,p)<75+skillLevels.orb*22)damageEnemy(e,(3+skillLevels.orb*2)*dt);
 if(skillLevels.cutter)for(let e of [...enemies]){let n=2+skillLevels.cutter;for(let j=0;j<n;j++){let a=time*2.5+j*Math.PI*2/n,x=p.x+Math.cos(a)*95,y=p.y+Math.sin(a)*95;if(Math.hypot(e.x-x,e.y-y)<e.r+12)damageEnemy(e,(10+skillLevels.cutter*5)*dt)}}
-for(let t of turrets){t.t-=dt;if(t.t<=0){let e=closest(t.x,t.y,390);if(e){damageEnemy(e,10+skillLevels.turret*5);burst(e.x,e.y,'#82e8ff',3)}t.t=Math.max(.23,1.15-skillLevels.turret*.13)}}
+for(let i=0;i<turrets.length;i++){let t=turrets[i],angle=time*1.1+i*Math.PI*2/Math.max(1,turrets.length),tx=p.x+Math.cos(angle)*65,ty=p.y+Math.sin(angle)*65;let follow=Math.min(1,dt*7);t.x+=(tx-t.x)*follow;t.y+=(ty-t.y)*follow;t.t-=dt;if(t.t<=0){let e=closest(t.x,t.y,390);if(e){let a=Math.atan2(e.y-t.y,e.x-t.x);bullets.push({x:t.x+Math.cos(a)*18,y:t.y+Math.sin(a)*18,vx:Math.cos(a)*650,vy:Math.sin(a)*650,r:5,life:.7,dmg:10+skillLevels.turret*5,color:'#7ee9ff',owner:'turret'});burst(t.x,t.y,'#82e8ff',2)}t.t=Math.max(.23,1.15-skillLevels.turret*.13)}}
 for(let b of birds){b.a+=dt*2;b.t-=dt;if(b.t<=0){let e=closest(p.x,p.y,430);if(e){damageEnemy(e,8+skillLevels.birds*6);burst(e.x,e.y,'#e1baff',3)}b.t=Math.max(.3,1.5-skillLevels.birds*.16)}}
 if(net.active&&net.host){for(let r of Object.values(net.peers)){if(!r||r.hp<=0)continue;let sk=r.skills||{},range=75+Math.min(5,sk.orb||0)*22;
  if(sk.orb)for(let e of [...enemies])if(distance(e,r)<range)damageEnemy(e,(3+Math.min(5,sk.orb)*2)*dt);
