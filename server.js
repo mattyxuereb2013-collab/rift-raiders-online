@@ -9,9 +9,19 @@ const HOST=process.env.HOST||'0.0.0.0';
 const rooms=new Map();
 const MAX_PLAYERS=4;
 const clients=new Set();
-// Session leaderboard (resets if the free hosting instance restarts).
+// Fallback session leaderboard; set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY for permanent scores.
 const scores=[];
 const cleanName=s=>String(s||'Raider').replace(/[<>\x00-\x1f]/g,'').slice(0,18)||'Raider';
+const dbUrl=(process.env.SUPABASE_URL||'').replace(/\/$/,'');
+const dbKey=process.env.SUPABASE_SERVICE_ROLE_KEY||'';
+const permanentScores=!!(dbUrl&&dbKey);
+async function dbCall(endpoint,options={}){
+ const response=await fetch(dbUrl+'/rest/v1/'+endpoint,{...options,headers:{apikey:dbKey,Authorization:'Bearer '+dbKey,'Content-Type':'application/json',...(options.headers||{})},signal:AbortSignal.timeout(8000)});
+ if(!response.ok)throw Error('Leaderboard database error: HTTP '+response.status);
+ return response.status===204?null:response.json();
+}
+function jsonResponse(res,status,value){res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(value))}
+
 function send(c,obj){if(!c||c.dead||c.socket.destroyed)return;try{let data=Buffer.from(JSON.stringify(obj));if(data.length>65535)return;let h=data.length<126?Buffer.from([0x81,data.length]):Buffer.from([0x81,126,data.length>>8,data.length&255]);c.socket.write(Buffer.concat([h,data]))}catch(e){closeClient(c)}}
 function broadcast(room,msg,except){for(let c of room.players)if(c!==except)send(c,msg)}
 function roomFor(c){return c.room?rooms.get(c.room):null}
@@ -63,8 +73,8 @@ function processMsg(c,m){if(!m||typeof m!=='object'||typeof m.t!=='string')retur
 function decodeFrames(c,chunk){if(c.dead)return;c.buf=Buffer.concat([c.buf,chunk]);if(c.buf.length>140000){closeClient(c);return}while(c.buf.length>=2){let opcode=c.buf[0]&15,b1=c.buf[1],masked=!!(b1&128),len=b1&127,off=2;if(len===126){if(c.buf.length<4)return;len=c.buf.readUInt16BE(2);off=4}else if(len===127){closeClient(c);return}if(len>65535||!masked){closeClient(c);return}if(c.buf.length<off+4+len)return;let mask=c.buf.subarray(off,off+4),body=c.buf.subarray(off+4,off+4+len);c.buf=c.buf.subarray(off+4+len);if(opcode===8){closeClient(c);return}if(opcode===9){try{c.socket.write(Buffer.from([0x8a,0]))}catch(e){}continue}if(opcode!==1)continue;let raw=Buffer.allocUnsafe(len);for(let i=0;i<len;i++)raw[i]=body[i]^mask[i%4];try{processMsg(c,JSON.parse(raw.toString('utf8')))}catch(e){console.error('Bad client message:',e.message)}}}
 const server=http.createServer((req,res)=>{
  let pathname;try{pathname=new URL(req.url,'http://localhost').pathname}catch(e){res.writeHead(400);res.end();return}
- if(pathname==='/leaderboard'&&req.method==='GET'){res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(scores.slice(0,30)));return}
- if(pathname==='/score'&&req.method==='POST'){let body='',done=false;req.on('data',c=>{body+=c;if(body.length>2048){done=true;req.destroy()}});req.on('end',()=>{if(done)return;try{let v=JSON.parse(body),name=cleanName(v.name),wave=Math.max(1,Math.min(999,Math.floor(Number(v.wave)||1))),kills=Math.max(0,Math.min(999999,Math.floor(Number(v.kills)||0))),mode=v.mode==='online'?'online':'offline';const existing=scores.find(s=>s.name.toLowerCase()===name.toLowerCase());if(existing){if(wave>existing.wave||(wave===existing.wave&&kills>existing.kills))Object.assign(existing,{name,wave,kills,mode})}else scores.push({name,wave,kills,mode});scores.sort((a,b)=>b.wave-a.wave||b.kills-a.kills);scores.length=Math.min(scores.length,100);res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true}))}catch(e){res.writeHead(400);res.end('Invalid score')}});return}
+ if(pathname==='/leaderboard'&&req.method==='GET'){if(!permanentScores){jsonResponse(res,200,scores.slice(0,30));return}dbCall('raider_scores?select=name,wave,kills,mode&order=wave.desc,kills.desc&limit=30').then(rows=>jsonResponse(res,200,rows)).catch(e=>{console.error(e.message);jsonResponse(res,503,{error:'Leaderboard temporarily unavailable'})});return}
+ if(pathname==='/score'&&req.method==='POST'){let body='',done=false;req.on('data',c=>{body+=c;if(body.length>2048){done=true;req.destroy()}});req.on('end',()=>{if(done)return;let name,wave,kills,mode;try{let v=JSON.parse(body);name=cleanName(v.name);wave=Math.max(1,Math.min(999,Math.floor(Number(v.wave)||1)));kills=Math.max(0,Math.min(999999,Math.floor(Number(v.kills)||0)));mode=v.mode==='online'?'online':'offline'}catch(e){jsonResponse(res,400,{error:'Invalid score'});return}if(permanentScores){dbCall('rpc/save_best_raider_score',{method:'POST',body:JSON.stringify({p_name:name,p_wave:wave,p_kills:kills,p_mode:mode})}).then(()=>jsonResponse(res,200,{ok:true})).catch(e=>{console.error(e.message);jsonResponse(res,503,{error:'Could not save score'})});return}const existing=scores.find(s=>s.name.toLowerCase()===name.toLowerCase());if(existing){if(wave>existing.wave||(wave===existing.wave&&kills>existing.kills))Object.assign(existing,{name,wave,kills,mode})}else scores.push({name,wave,kills,mode});scores.sort((a,b)=>b.wave-a.wave||b.kills-a.kills);scores.length=Math.min(scores.length,100);jsonResponse(res,200,{ok:true})});return}
  if(pathname==='/health'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,rooms:rooms.size,players:clients.size}));return}
  if(pathname!=='/'&&pathname!=='/index.html'){res.writeHead(404);res.end('Not found');return}
  res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});fs.createReadStream(path.join(__dirname,'index.html')).pipe(res)
