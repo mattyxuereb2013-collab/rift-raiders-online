@@ -206,7 +206,7 @@ let daily=$('dailySpin');if(daily)daily.onclick=()=>{
 };
 let board=$('leaderboardBtn');if(board)board.onclick=()=>{
  const local=save.highScores.slice(0,10);
- card.innerHTML='<h1>🏆 RIFT RAIDERS LEADERBOARD</h1><p>See your friends and other players! Offline and online runs count.</p><div class="lobbyTabs"><button id="boardAll" class="sel">🌍 ALL</button><button id="boardOffline">🎮 OFFLINE</button><button id="boardOnline">🌐 ONLINE</button></div><div id="scores">Loading global scores…</div><h3>💾 YOUR SAVED RUNS</h3><div id="localScores"></div><p>Global scores reset when the free server restarts. Your saved runs stay on this device.</p><button id="boardBack">BACK TO SHOP</button>';
+ card.innerHTML='<h1>🏆 RIFT RAIDERS LEADERBOARD</h1><p>See your friends and other players! Offline and online runs count.</p><div class="lobbyTabs"><button id="boardAll" class="sel">🌍 ALL</button><button id="boardOffline">🎮 OFFLINE</button><button id="boardOnline">🌐 ONLINE</button></div><button id="boardRefresh">🔄 REFRESH GLOBAL SCORES</button><div id="scores">Loading global scores…</div><h3>💾 YOUR SAVED RUNS</h3><div id="localScores"></div><p>Global scores reset when the free server restarts. Your saved runs stay on this device.</p><button id="boardBack">BACK TO SHOP</button>';
  $('boardBack').onclick=()=>renderShop(resumeRun);
  let selected='all',globalScores=[],loaded=false,failed=false;
  const format=(rows)=>rows.length?rows.slice(0,30).map((v,i)=>'<p>'+(i+1)+'. '+safeText(v.name)+' · '+(v.mode==='online'?'🌐 ONLINE':'🎮 OFFLINE')+' · Wave '+Number(v.wave||1)+' · '+Number(v.kills||0)+' kills</p>').join(''):'<p>No runs yet. Play a match to get on the board!</p>';
@@ -216,8 +216,9 @@ let board=$('leaderboardBtn');if(board)board.onclick=()=>{
  $('scores').innerHTML='<h3>🏆 GLOBAL TOP RUNS</h3>'+(failed?'<p>Server unavailable. Your saved runs are still shown below.</p>':!loaded?'<p>Loading scores…</p>':format(filter(globalScores)));
  }
  for(let [id,m] of [['boardAll','all'],['boardOffline','offline'],['boardOnline','online']])$(id).onclick=()=>{selected=m;paint()};
- $('boardRefresh').onclick=()=>renderShop(resumeRun);paint();
- fetch('/leaderboard').then(r=>{if(!r.ok)throw Error('Unavailable');return r.json()}).then(rows=>{globalScores=Array.isArray(rows)?rows:[];loaded=true;if($('scores'))paint()}).catch(()=>{failed=true;if($('scores'))paint()});
+ paint();
+ function loadScores(){loaded=false;failed=false;paint();fetch('/leaderboard',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('Unavailable');return r.json()}).then(rows=>{globalScores=Array.isArray(rows)?rows:[];loaded=true;if($('scores'))paint()}).catch(()=>{failed=true;if($('scores'))paint()})}
+ $('boardRefresh').onclick=loadScores;loadScores();
 };
 card.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{activeShop=b.dataset.tab;renderShop(resumeRun)});
 card.querySelectorAll('[data-type]').forEach(b=>b.onclick=()=>{
