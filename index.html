@@ -116,7 +116,7 @@ function updateGuest(dt){time+=dt;if(downedUntil&&time>=downedUntil){die();retur
  if(!downedUntil){p.x=clamp(p.x+dx*p.speed*dt,p.r,m[2]-p.r);p.y=clamp(p.y+dy*p.speed*dt,p.r,m[3]-p.r)}dashCD=Math.max(0,dashCD-dt);inv=Math.max(0,inv-dt);shot-=dt;borderTick-=dt;
  if(!downedUntil&&(p.x<55||p.y<55||p.x>m[2]-55||p.y>m[3]-55)&&borderTick<=0){borderTick=.8;hurt(7)}
  if(!downedUntil&&firing&&shot<=0){fireAngle(aim);if(skillLevels.back)fireAngle(aim+Math.PI,skillLevels.back*.25+.3);shot=GUNS[save.gun][2]*1.33}
- if(skillLevels.heal){skillTimers.heal=(skillTimers.heal||0)-dt;if(skillTimers.heal<=0){skillTimers.heal=5-skillLevels.heal*.6;p.hp=Math.min(p.max,p.hp+2+skillLevels.heal*2)}}
+ if(!downedUntil&&skillLevels.heal){skillTimers.heal=(skillTimers.heal||0)-dt;if(skillTimers.heal<=0){skillTimers.heal=5-skillLevels.heal*.6;p.hp=Math.min(p.max,p.hp+2+skillLevels.heal*2)}}
  if(skillLevels.nuke){let duration=Math.max(7,21-skillLevels.nuke*2.4);skillTimers.nuke=(skillTimers.nuke??duration)-dt}
  for(let b of birds){b.a+=dt*2;b.t-=dt;if(b.t<=0){b.t=Math.max(.3,1.5-skillLevels.birds*.16);/* The host handles enemy damage; guests show the attack animation. */}}
  if(net.lastWorld&&performance.now()-net.lastWorld>5000)message('Waiting for host world updates…');
@@ -237,7 +237,7 @@ for(let i=drops.length-1;i>=0;i--){let o=drops[i],dd=distance(o,p);if(dd<130){o.
 if(mode!=='play')return;for(let q of effects){q.x+=q.vx*dt;q.y+=q.vy*dt;q.life-=dt}effects=effects.filter(q=>q.life>0);
 function every(k,interval,fn){if(!skillLevels[k])return;skillTimers[k]=(skillTimers[k]||0)-dt;if(skillTimers[k]<=0){skillTimers[k]=interval;fn()}}
 every('nuke',Math.max(7,21-skillLevels.nuke*2.4),()=>{let radius=165+skillLevels.nuke*55;for(let e of [...enemies])if(distance(e,p)<radius)damageEnemy(e,(40+skillLevels.nuke*35)*(skillLevels.nuke===5?1.5:1));burst(p.x,p.y,'#ffe38b',65);note(75,.5,.07,'sawtooth')});
-every('heal',Math.max(1.5,5-skillLevels.heal*.6),()=>p.hp=Math.min(p.max,p.hp+2+skillLevels.heal*2));
+every('heal',Math.max(1.5,5-skillLevels.heal*.6),()=>{if(!downedUntil)p.hp=Math.min(p.max,p.hp+2+skillLevels.heal*2)});
 if(skillLevels.lightning){skillTimers.lightning=(skillTimers.lightning||0)-dt;if(skillTimers.lightning<=0){let near=[...enemies].sort((a,b)=>distance(a,p)-distance(b,p)).filter(e=>distance(e,p)<430).slice(0,Math.min(7,2+skillLevels.lightning));for(let e of near){damageEnemy(e,(14+skillLevels.lightning*9)*(skillLevels.lightning===5?1.5:1));burst(e.x,e.y,'#b9e7ff',4)}skillTimers.lightning=Math.max(.45,2.3-skillLevels.lightning*.27)}}
 if(skillLevels.blackhole){for(let e of enemies){let d=distance(e,p);if(d<150+skillLevels.blackhole*55&&d>45){e.x+=(p.x-e.x)/d*(30+skillLevels.blackhole*22)*dt;e.y+=(p.y-e.y)/d*(30+skillLevels.blackhole*22)*dt}}}
 if(skillLevels.orb)for(let e of [...enemies])if(distance(e,p)<75+skillLevels.orb*22)damageEnemy(e,(3+skillLevels.orb*2)*dt);
