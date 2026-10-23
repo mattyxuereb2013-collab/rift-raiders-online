@@ -9,6 +9,8 @@ const HOST=process.env.HOST||'0.0.0.0';
 const rooms=new Map();
 const MAX_PLAYERS=4;
 const clients=new Set();
+// Session leaderboard (resets if the free hosting instance restarts).
+const scores=[];
 const cleanName=s=>String(s||'Raider').replace(/[<>\x00-\x1f]/g,'').slice(0,18)||'Raider';
 function send(c,obj){if(!c||c.dead||c.socket.destroyed)return;try{let data=Buffer.from(JSON.stringify(obj));if(data.length>65535)return;let h=data.length<126?Buffer.from([0x81,data.length]):Buffer.from([0x81,126,data.length>>8,data.length&255]);c.socket.write(Buffer.concat([h,data]))}catch(e){closeClient(c)}}
 function broadcast(room,msg,except){for(let c of room.players)if(c!==except)send(c,msg)}
@@ -53,14 +55,16 @@ function processMsg(c,m){if(!m||typeof m!=='object'||typeof m.t!=='string')retur
   if(host&&Number.isFinite(m.angle))send(host,{t:'shot',id:c.id,angle:m.angle,gun:String(m.gun||'pistol').slice(0,20),upgrade:Math.max(0,Math.min(5,Number(m.upgrade)||0))});return;
  }
  if(m.t==='world'&&c.id===room.host){
-  if(Array.isArray(m.enemies)&&m.enemies.length<=100&&Array.isArray(m.bullets)&&m.bullets.length<=500)broadcast(room,{t:'world',time:m.time,wave:m.wave,enemies:m.enemies,bullets:m.bullets,drops:m.drops||[],turrets:m.turrets||[]},c);return;
+  if(Array.isArray(m.enemies)&&m.enemies.length<=100&&Array.isArray(m.bullets)&&m.bullets.length<=500)broadcast(room,{t:'world',time:m.time,wave:m.wave,enemies:m.enemies,bullets:m.bullets,drops:m.drops||[],turrets:m.turrets||[],chests:m.chests||[],event:m.event||''},c);return;
  }
  if(m.t==='reward'&&c.id===room.host){let coins=Math.max(0,Math.min(50,Math.floor(m.coins)||0));if(coins)broadcast(room,{t:'reward',coins},c);return}
- if((m.t==='hurt'||m.t==='xp')&&c.id===room.host){let dest=[...room.players].find(x=>x.id===m.to);if(dest){if(m.t==='hurt')send(dest,{t:'hurt',damage:Math.max(0,Math.min(60,Number(m.damage)||0))});else send(dest,{t:'xp',xp:Math.max(0,Math.min(100,Math.floor(m.xp)||0))})}return}
+ if((m.t==='hurt'||m.t==='xp'||m.t==='revive'||m.t==='bonus')&&c.id===room.host){let dest=[...room.players].find(x=>x.id===m.to);if(dest){if(m.t==='hurt')send(dest,{t:'hurt',damage:Math.max(0,Math.min(60,Number(m.damage)||0))});else if(m.t==='xp')send(dest,{t:'xp',xp:Math.max(0,Math.min(100,Math.floor(m.xp)||0))});else if(m.t==='revive')send(dest,{t:'revive'});else send(dest,{t:'bonus',kind:['coins','heal','boost'].includes(m.kind)?m.kind:'heal',amount:Math.max(0,Math.min(200,Number(m.amount)||0))})}return}
 }
 function decodeFrames(c,chunk){if(c.dead)return;c.buf=Buffer.concat([c.buf,chunk]);if(c.buf.length>140000){closeClient(c);return}while(c.buf.length>=2){let opcode=c.buf[0]&15,b1=c.buf[1],masked=!!(b1&128),len=b1&127,off=2;if(len===126){if(c.buf.length<4)return;len=c.buf.readUInt16BE(2);off=4}else if(len===127){closeClient(c);return}if(len>65535||!masked){closeClient(c);return}if(c.buf.length<off+4+len)return;let mask=c.buf.subarray(off,off+4),body=c.buf.subarray(off+4,off+4+len);c.buf=c.buf.subarray(off+4+len);if(opcode===8){closeClient(c);return}if(opcode===9){try{c.socket.write(Buffer.from([0x8a,0]))}catch(e){}continue}if(opcode!==1)continue;let raw=Buffer.allocUnsafe(len);for(let i=0;i<len;i++)raw[i]=body[i]^mask[i%4];try{processMsg(c,JSON.parse(raw.toString('utf8')))}catch(e){console.error('Bad client message:',e.message)}}}
 const server=http.createServer((req,res)=>{
  let pathname;try{pathname=new URL(req.url,'http://localhost').pathname}catch(e){res.writeHead(400);res.end();return}
+ if(pathname==='/leaderboard'&&req.method==='GET'){res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(scores.slice(0,20)));return}
+ if(pathname==='/score'&&req.method==='POST'){let body='',done=false;req.on('data',c=>{body+=c;if(body.length>2048){done=true;req.destroy()}});req.on('end',()=>{if(done)return;try{let v=JSON.parse(body),name=cleanName(v.name),wave=Math.max(1,Math.min(999,Math.floor(Number(v.wave)||1))),kills=Math.max(0,Math.min(999999,Math.floor(Number(v.kills)||0)));scores.push({name,wave,kills});scores.sort((a,b)=>b.wave-a.wave||b.kills-a.kills);scores.length=Math.min(scores.length,20);res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true}))}catch(e){res.writeHead(400);res.end('Invalid score')}});return}
  if(pathname==='/health'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,rooms:rooms.size,players:clients.size}));return}
  if(pathname!=='/'&&pathname!=='/index.html'){res.writeHead(404);res.end('Not found');return}
  res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});fs.createReadStream(path.join(__dirname,'index.html')).pipe(res)
