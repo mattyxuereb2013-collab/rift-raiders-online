@@ -1,0 +1,24 @@
+{
+  "id": "/",
+  "name": "RIFT RAIDERS: CHAOS ARENA",
+  "short_name": "RIFT RAIDERS",
+  "description": "Battle enemy waves, defeat bosses and climb the global leaderboard in RIFT RAIDERS.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#070b16",
+  "theme_color": "#101b2d",
+  "orientation": "any",
+  "categories": [
+    "games",
+    "action"
+  ],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
