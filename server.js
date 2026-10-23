@@ -76,6 +76,12 @@ const server=http.createServer((req,res)=>{
  if(pathname==='/leaderboard'&&req.method==='GET'){if(!permanentScores){jsonResponse(res,200,scores.slice(0,30));return}dbCall('raider_scores?select=name,wave,kills,mode&order=wave.desc,kills.desc&limit=30').then(rows=>jsonResponse(res,200,rows)).catch(e=>{console.error(e.message);jsonResponse(res,503,{error:'Leaderboard temporarily unavailable'})});return}
  if(pathname==='/score'&&req.method==='POST'){let body='',done=false;req.on('data',c=>{body+=c;if(body.length>2048){done=true;req.destroy()}});req.on('end',()=>{if(done)return;let name,wave,kills,mode;try{let v=JSON.parse(body);name=cleanName(v.name);wave=Math.max(1,Math.min(999,Math.floor(Number(v.wave)||1)));kills=Math.max(0,Math.min(999999,Math.floor(Number(v.kills)||0)));mode=v.mode==='online'?'online':'offline'}catch(e){jsonResponse(res,400,{error:'Invalid score'});return}if(permanentScores){dbCall('rpc/save_best_raider_score',{method:'POST',body:JSON.stringify({p_name:name,p_wave:wave,p_kills:kills,p_mode:mode})}).then(()=>jsonResponse(res,200,{ok:true})).catch(e=>{console.error(e.message);jsonResponse(res,503,{error:'Could not save score'})});return}const existing=scores.find(s=>s.name.toLowerCase()===name.toLowerCase());if(existing){if(wave>existing.wave||(wave===existing.wave&&kills>existing.kills))Object.assign(existing,{name,wave,kills,mode})}else scores.push({name,wave,kills,mode});scores.sort((a,b)=>b.wave-a.wave||b.kills-a.kills);scores.length=Math.min(scores.length,100);jsonResponse(res,200,{ok:true})});return}
  if(pathname==='/health'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,rooms:rooms.size,players:clients.size}));return}
+ const staticFiles={'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json; charset=utf-8'],'/icon.svg':['icon.svg','image/svg+xml'],'/sw.js':['sw.js','application/javascript; charset=utf-8']};
+ if(Object.hasOwn(staticFiles,pathname)){
+  const [filename,mime]=staticFiles[pathname];
+  res.writeHead(200,{'Content-Type':mime,'Cache-Control':'no-cache','X-Content-Type-Options':'nosniff',...(pathname==='/sw.js'?{'Service-Worker-Allowed':'/'}:{})});
+  fs.createReadStream(path.join(__dirname,filename)).pipe(res);return;
+ }
  if(pathname!=='/'&&pathname!=='/index.html'){res.writeHead(404);res.end('Not found');return}
  res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});fs.createReadStream(path.join(__dirname,'index.html')).pipe(res)
 });
