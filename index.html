@@ -172,7 +172,7 @@ const items=Object.entries(catalog).map(([id,a])=>isRoll?
 `<button data-type="${activeShop}" data-id="${id}" class="${save[activeShop.slice(0,-1)]===id?'sel':''}">${a[0]}<small>${save[activeShop][id]?'✓ OWNED'+(save[activeShop.slice(0,-1)]===id?' · EQUIPPED':''):'🔒 LOCKED'}</small><small>${id==='none'||id==='standard'?'STARTER':chanceText(activeShop,id)+' DROP CHANCE'}</small>${activeShop==='skins'?'<small>Speed ×'+a[2].toFixed(2)+'</small>':''}</button>`:shopItem(activeShop,id,a)).join('');
 return `<h1>RIFT RAIDERS</h1><p>Defeat giant bosses · Collect rare pets · Master 5-level skills · Team up online</p>
 <p><b>👤 ${safeText(playerName()||'NAME NOT SET')}</b> · <button id="changePlayerName">✏️ CHANGE NAME</button></p><p><b>🪙 ${save.coins} COINS</b> · Best: ${save.best} kills · SOLO + ONLINE</p>
-<button id="dailySpin" ${save.dailySpin===new Date().toISOString().slice(0,10)?'disabled':''}>🎰 ${save.dailySpin===new Date().toISOString().slice(0,10)?'DAILY SPIN USED':'FREE DAILY SPIN'}</button> <button id="leaderboardBtn">🏆 LEADERBOARD</button><p id="dailyResult" style="color:#ffe39c"></p>
+<button id="dailySpin" ${save.dailySpin===new Date().toISOString().slice(0,10)?'disabled':''}>🎰 ${save.dailySpin===new Date().toISOString().slice(0,10)?'DAILY SPIN USED':'FREE DAILY SPIN'}</button> <button id="leaderboardBtn">🏆 FRIENDS LEADERBOARD</button> <button id="shareGame">🔗 SHARE LINK</button><p id="dailyResult" style="color:#ffe39c"></p>
 <div class="shopTabs">${tabs.map(([id,label])=>`<button data-tab="${id}" class="${activeShop===id?'sel':''}">${label}</button>`).join('')}</div>
 <section class="shop oneShop"><h2>${heading}</h2>
 ${isRoll?`<p>🎲 Roll for a random ${activeShop==='pets'?'pet':'skin'}. Common rewards are much more likely than legendary ones. Duplicates refund 40% of the roll price.</p><button id="rollBtn" style="background:#eac06e;color:#152132;font-size:17px;padding:13px 28px">🎲 RANDOM ROLL · 🪙 ${ROLL_PRICE[activeShop]}</button><p id="rollResult" style="color:#ffe39c;min-height:20px"></p>`:''}
@@ -183,7 +183,7 @@ ${activeShop==='guns'?`<p>Equipped gun upgrade: <b>${gl}/5</b></p><button id="gu
 <p>Move: WASD / joystick · Aim: mouse or drag · Shoot: hold click / FIRE · Dash: Space (20s cooldown)</p>`;
 }
 function renderShop(resumeRun=false,result=''){
-card.innerHTML=shopView();$('changePlayerName').onclick=()=>{let name=prompt('Choose your leaderboard name (max 18 characters):',playerName());if(name!==null&&savePlayerName(name))renderShop(resumeRun)};let outcome=$('dailyResult');if(outcome&&result&&result.startsWith('🎰'))outcome.textContent=result;
+card.innerHTML=shopView();$('shareGame').onclick=()=>{prompt('Send this link to your friends:',location.origin)};$('changePlayerName').onclick=()=>{let name=prompt('Choose your leaderboard name (max 18 characters):',playerName());if(name!==null&&savePlayerName(name))renderShop(resumeRun)};let outcome=$('dailyResult');if(outcome&&result&&result.startsWith('🎰'))outcome.textContent=result;
 let daily=$('dailySpin');if(daily)daily.onclick=()=>{
  const today=new Date().toISOString().slice(0,10);if(save.dailySpin===today)return;
  save.dailySpin=today;persist(); // Reserve today's spin before animating to prevent duplicate rewards.
@@ -206,17 +206,17 @@ let daily=$('dailySpin');if(daily)daily.onclick=()=>{
 };
 let board=$('leaderboardBtn');if(board)board.onclick=()=>{
  const local=save.highScores.slice(0,10);
- card.innerHTML='<h1>🏆 RIFT RAIDERS LEADERBOARD</h1><p>Offline AND online runs count! Compare waves and kills.</p><div class="lobbyTabs"><button id="boardAll" class="sel">🌍 ALL</button><button id="boardOffline">🎮 OFFLINE</button><button id="boardOnline">🌐 ONLINE</button></div><div id="scores">Loading global scores…</div><h3>💾 YOUR SAVED RUNS</h3><div id="localScores"></div><p>Global scores reset when the free server restarts. Your saved runs stay on this device.</p><button id="boardBack">BACK TO SHOP</button>';
+ card.innerHTML='<h1>🏆 RIFT RAIDERS LEADERBOARD</h1><p>See your friends and other players! Offline and online runs count.</p><div class="lobbyTabs"><button id="boardAll" class="sel">🌍 ALL</button><button id="boardOffline">🎮 OFFLINE</button><button id="boardOnline">🌐 ONLINE</button></div><div id="scores">Loading global scores…</div><h3>💾 YOUR SAVED RUNS</h3><div id="localScores"></div><p>Global scores reset when the free server restarts. Your saved runs stay on this device.</p><button id="boardBack">BACK TO SHOP</button>';
  $('boardBack').onclick=()=>renderShop(resumeRun);
  let selected='all',globalScores=[],loaded=false,failed=false;
- const format=(rows)=>rows.length?rows.slice(0,10).map((v,i)=>'<p>'+(i+1)+'. '+safeText(v.name)+' · '+(v.mode==='online'?'🌐 ONLINE':'🎮 OFFLINE')+' · Wave '+Number(v.wave||1)+' · '+Number(v.kills||0)+' kills</p>').join(''):'<p>No runs yet. Play a match to get on the board!</p>';
+ const format=(rows)=>rows.length?rows.slice(0,30).map((v,i)=>'<p>'+(i+1)+'. '+safeText(v.name)+' · '+(v.mode==='online'?'🌐 ONLINE':'🎮 OFFLINE')+' · Wave '+Number(v.wave||1)+' · '+Number(v.kills||0)+' kills</p>').join(''):'<p>No runs yet. Play a match to get on the board!</p>';
  function paint(){for(let [id,m] of [['boardAll','all'],['boardOffline','offline'],['boardOnline','online']])$(id).classList.toggle('sel',selected===m);
  let filter=rows=>selected==='all'?rows:rows.filter(v=>(v.mode||'offline')===selected);
  $('localScores').innerHTML=format(filter(local));
  $('scores').innerHTML='<h3>🏆 GLOBAL TOP RUNS</h3>'+(failed?'<p>Server unavailable. Your saved runs are still shown below.</p>':!loaded?'<p>Loading scores…</p>':format(filter(globalScores)));
  }
  for(let [id,m] of [['boardAll','all'],['boardOffline','offline'],['boardOnline','online']])$(id).onclick=()=>{selected=m;paint()};
- paint();
+ $('boardRefresh').onclick=()=>renderShop(resumeRun);paint();
  fetch('/leaderboard').then(r=>{if(!r.ok)throw Error('Unavailable');return r.json()}).then(rows=>{globalScores=Array.isArray(rows)?rows:[];loaded=true;if($('scores'))paint()}).catch(()=>{failed=true;if($('scores'))paint()});
 };
 card.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{activeShop=b.dataset.tab;renderShop(resumeRun)});
