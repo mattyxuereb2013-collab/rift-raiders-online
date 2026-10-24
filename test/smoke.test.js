@@ -44,3 +44,16 @@ test('latest upgrades have prominent navigation and offline cache is versioned',
  assert.ok(sw.includes('rift-raiders-shell-v2'));
  assert.ok(sw.includes("cache:'no-store'"));
 });
+
+test('arcade arena lobby keeps all gameplay and account controls',()=>{
+ for(const id of ['play','online','accountBtn','profileBtn','friendsBtn','leaderboardBtn','shareGame','questsBtn','battlePassBtn','achievementsBtn','dailySpin','changePlayerName','rollBtn']){
+  assert.ok(html.includes('id="'+id+'"'),id+' still exists');
+ }
+ assert.ok(html.includes('class="arenaLobby"'));
+ assert.ok(html.includes('class="arenaAvatar"'));
+ assert.ok(html.includes('class="arenaArmory"'));
+ assert.ok(html.includes('class="arenaTeam"'));
+ assert.ok(html.includes('➕ OPEN SLOT'));
+ assert.ok(html.includes("if(net.host)$('startTeam').onclick"));
+ assert.ok(html.includes("$('connectTeam').onclick"));
+});
