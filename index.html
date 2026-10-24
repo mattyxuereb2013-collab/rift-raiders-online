@@ -100,7 +100,7 @@ const AUTH_KEY='sb_publishable_Dn41VgZfEBr-wsg8EBICnQ_CseQ8f_G';
 const AUTH_STORAGE='rift_raiders_account_session';
 let account=null,accountSession=null,rankSyncing=null;
 try{accountSession=JSON.parse(localStorage.getItem(AUTH_STORAGE)||'null')}catch(e){}
-function authHeaders(token){return {'apikey':AUTH_KEY,'Authorization':'Bearer '+(token||AUTH_KEY),'Content-Type':'application/json'}}
+function authHeaders(token){return {'apikey':AUTH_KEY,...(token?{'Authorization':'Bearer '+token}:{}),'Content-Type':'application/json'}}
 async function authRequest(path,options={}){let r=await fetch(AUTH_URL+path,{...options,headers:{...authHeaders(),...(options.headers||{})}}),v=await r.json().catch(()=>({}));if(!r.ok)throw Error(v.msg||v.error_description||v.message||v.error||'Account request failed');return v}
 function setAccountSession(v){accountSession=v&&v.access_token?v:null;try{if(accountSession)localStorage.setItem(AUTH_STORAGE,JSON.stringify(accountSession));else localStorage.removeItem(AUTH_STORAGE)}catch(e){}}
 async function accountToken(){if(!accountSession)return null;if(accountSession.expires_at&&accountSession.expires_at>Date.now()/1000+60)return accountSession.access_token;if(!accountSession.refresh_token){setAccountSession(null);account=null;return null}
@@ -126,7 +126,7 @@ panel.innerHTML='<p><input id="accountEmail" type="email" autocomplete="email" p
 const submit=async signup=>{let email=$('accountEmail').value.trim(),password=$('accountPassword').value,name=$('accountName').value.trim();if(!email||password.length<8){status.textContent='Enter a valid email and password of at least 8 characters';return}if(signup&&!/^[a-zA-Z0-9_ -]{2,18}$/.test(name)){status.textContent='Raider name must be 2–18 letters, numbers, spaces, - or _';return}
 status.textContent='Connecting securely...';$('accountLogin').disabled=true;$('accountSignup').disabled=true;
 try{if(signup){save.pendingAccountName=name;persist();let v=await authRequest('/auth/v1/signup',{method:'POST',body:JSON.stringify({email,password})});if(v.access_token){setAccountSession(v);await loadAccount();await syncRank();accountScreen();return}status.textContent='Account created! Check your email to confirm, then SIGN IN.'}
-else{let v=await authRequest('/auth/v1/token?grant_type=password',{method:'POST',body:JSON.stringify({email,password})});setAccountSession(v);await loadAccount();await syncRank();accountScreen();return}}
+else{if(/^[a-zA-Z0-9_ -]{2,18}$/.test(name)){save.pendingAccountName=name;persist()}let v=await authRequest('/auth/v1/token?grant_type=password',{method:'POST',body:JSON.stringify({email,password})});setAccountSession(v);await loadAccount();await syncRank();accountScreen();return}}
 catch(e){status.textContent='⚠️ '+e.message}finally{if($('accountLogin'))$('accountLogin').disabled=false;if($('accountSignup'))$('accountSignup').disabled=false}};
 $('accountLogin').onclick=()=>submit(false);$('accountSignup').onclick=()=>submit(true);
 }
