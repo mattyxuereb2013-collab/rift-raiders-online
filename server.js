@@ -54,7 +54,7 @@ function processMsg(c,m){if(!m||typeof m!=='object'||typeof m.t!=='string')retur
   }
   let code=String(m.room||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8),room=rooms.get(code);
   if(!room){send(c,{t:'error',message:'Lobby not found. Check the code.'});return}
-  let invited=typeof m.inviteToken==='string'&&m.inviteToken.length===48&&crypto.timingSafeEqual(Buffer.from(m.inviteToken),Buffer.from(room.inviteToken));
+  let invited=typeof m.inviteToken==='string'&&/^[0-9a-f]{48}$/.test(m.inviteToken)&&crypto.timingSafeEqual(Buffer.from(m.inviteToken,'hex'),Buffer.from(room.inviteToken,'hex'));
   if(!invited&&!validatePassword(m)){send(c,{t:'error',message:'Enter a lobby password or use a friend invitation.'});return}
   if(!invited&&!equalPass(m.password,room)){send(c,{t:'error',message:'Wrong lobby password.'});return}
   if(room.started){send(c,{t:'error',message:'Match already started. Ask the host to make a new lobby.'});return}
