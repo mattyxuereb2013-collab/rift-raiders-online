@@ -587,6 +587,22 @@ async function incomingRoomInvites(){
  if(!account)await loadAccount();
  return await accountDb('raider_room_invites?select=id,sender,room_code,join_token,expires_at&recipient=eq.'+account.id+'&expires_at=gt.'+encodeURIComponent(new Date().toISOString())+'&order=created_at.desc&limit=30')||[];
 }
+
+async function renderLobbyRoomInvites(){
+ if(!accountSession||mode!=='menu')return;
+ const area=$('lobbyRoomInvites');if(!area)return;
+ try{
+  const invites=await incomingRoomInvites();if(!area.isConnected||mode!=='menu')return;
+  if(!invites.length){area.style.display='none';area.innerHTML='';return}
+  const ids=[...new Set(invites.map(v=>v.sender))];
+  const profiles=await accountDb('raider_profiles?select=user_id,display_name&user_id=in.('+ids.join(',')+')');
+  const names=new Map((profiles||[]).map(v=>[v.user_id,v.display_name]));
+  area.style.display='block';
+  area.innerHTML='<strong>🎮 FRIEND ROOM INVITES ('+invites.length+')</strong> '+invites.map(v=>'<button data-lobbyinvite="'+safeText(v.id)+'">🤝 JOIN '+safeText(names.get(v.sender)||'FRIEND')+'</button>').join(' ');
+  area.querySelectorAll('[data-lobbyinvite]').forEach(btn=>btn.onclick=()=>{const invite=invites.find(v=>v.id===btn.dataset.lobbyinvite);if(invite)joinFriendInvite(invite)});
+ }catch(e){if(area.isConnected)area.textContent='⚠️ Could not load room invites: '+e.message}
+}
+setInterval(()=>{if(mode==='menu'&&accountSession)renderLobbyRoomInvites()},15000);
 async function joinFriendInvite(invite){
  if(!invite||!invite.room_code||!invite.join_token)return;
  netDisconnect();net.name=playerName();mode='lobby';menu.style.display='flex';card.style.maxWidth='880px';
@@ -693,7 +709,7 @@ ${activeShop==='guns'?`<p>Equipped gun upgrade: <b>${gl}/5</b></p><button id="gu
 </details><p class="arenaFooterHelp">Move: WASD / joystick · Aim: mouse or drag · Shoot: hold click / FIRE · Dash: Space</p></main>`;
 }
 function renderShop(resumeRun=false,result=''){
-card.style.maxWidth='1100px';card.innerHTML=shopView();$('accountBtn').onclick=accountScreen;$('profileBtn').onclick=()=>profilesScreen();$('questsBtn').onclick=questsScreen;$('friendsBtn').onclick=friendsScreen;$('achievementsBtn').onclick=achievementsScreen;$('battlePassBtn').onclick=battlePassScreen;if(accountSession)syncRank().then(v=>{let el=$('rankSyncStatus');if(el)el.textContent=v.ok?'☁️ Rank backed up to your account':'⚠️ '+(v.reason||'Sign in again to sync');let btn=$('accountBtn');if(btn&&account)btn.textContent='👤 MY ACCOUNT';});else{let el=$('rankSyncStatus');if(el)el.textContent='🔐 Create an account to protect your rank';}$('shareGame').onclick=()=>{prompt('Send this link to your friends:',location.origin)};$('changePlayerName').onclick=()=>{if(account){accountScreen();return}let name=prompt('Choose your leaderboard name (max 18 characters):',playerName());if(name!==null&&savePlayerName(name))renderShop(resumeRun)};let outcome=$('dailyResult');if(outcome&&result&&result.startsWith('🎰'))outcome.textContent=result;
+card.style.maxWidth='1100px';card.innerHTML=shopView();if(accountSession){const lobby=card.querySelector('.arenaLobby');if(lobby){lobby.insertAdjacentHTML('afterbegin','<div id="lobbyRoomInvites" style="display:none;background:#123b59;border:2px solid #62d4af;border-radius:12px;padding:7px;margin:4px 0"></div>');renderLobbyRoomInvites()}}$('accountBtn').onclick=accountScreen;$('profileBtn').onclick=()=>profilesScreen();$('questsBtn').onclick=questsScreen;$('friendsBtn').onclick=friendsScreen;$('achievementsBtn').onclick=achievementsScreen;$('battlePassBtn').onclick=battlePassScreen;if(accountSession)syncRank().then(v=>{let el=$('rankSyncStatus');if(el)el.textContent=v.ok?'☁️ Rank backed up to your account':'⚠️ '+(v.reason||'Sign in again to sync');let btn=$('accountBtn');if(btn&&account)btn.textContent='👤 MY ACCOUNT';});else{let el=$('rankSyncStatus');if(el)el.textContent='🔐 Create an account to protect your rank';}$('shareGame').onclick=()=>{prompt('Send this link to your friends:',location.origin)};$('changePlayerName').onclick=()=>{if(account){accountScreen();return}let name=prompt('Choose your leaderboard name (max 18 characters):',playerName());if(name!==null&&savePlayerName(name))renderShop(resumeRun)};let outcome=$('dailyResult');if(outcome&&result&&result.startsWith('🎰'))outcome.textContent=result;
 let daily=$('dailySpin');if(daily)daily.onclick=()=>{
  const today=new Date().toISOString().slice(0,10);if(save.dailySpin===today)return;
  save.dailySpin=today;persist(); // Reserve today's spin before animating to prevent duplicate rewards.
