@@ -567,12 +567,97 @@ el.innerHTML='<h2>🎮 '+safeText(p.display_name)+'</h2><p>🏅 '+safeText(rankL
 $('findRaider').onclick=()=>{let n=prompt('Enter Raider name:');if(n!==null)profilesScreen(n)};
 if($('addRaider'))$('addRaider').onclick=async()=>{try{$('profileMsg').textContent=await accountDb('rpc/raider_friend_send',{method:'POST',body:JSON.stringify({p_name:p.display_name})})}catch(e){$('profileMsg').textContent='⚠️ '+e.message}}
 }catch(e){el.innerHTML='<p>⚠️ '+safeText(e.message)+'</p><button id="findRaider">SEARCH AGAIN</button>';$('findRaider').onclick=()=>{let n=prompt('Enter Raider name:');if(n!==null)profilesScreen(n)}}}
-async function friendsScreen(){let el=raiderPanel('🤝 FRIENDS');if(!accountSession){el.textContent='Sign in to add friends.';return}
-try{if(!account)await loadAccount();let id=account.id,rows=await accountDb('raider_friends?select=id,requester,recipient,status&or=(requester.eq.'+id+',recipient.eq.'+id+')&order=created_at.desc'),uids=[...new Set(rows.flatMap(v=>[v.requester,v.recipient]))],ps=uids.length?await accountDb('raider_profiles?select=user_id,display_name&user_id=in.('+uids.join(',')+')'):[],names=new Map(ps.map(v=>[v.user_id,v.display_name]));
-el.innerHTML='<button id="friendAdd">➕ ADD FRIEND</button><h2>👥 FRIENDS</h2>'+(rows.filter(v=>v.status==='accepted').map(v=>'<p>🤝 '+safeText(names.get(v.requester===id?v.recipient:v.requester)||'Raider')+'</p>').join('')||'<p>No friends yet</p>')+'<h2>📩 REQUESTS</h2>'+(rows.filter(v=>v.status==='pending'&&v.recipient===id).map(v=>'<p>'+safeText(names.get(v.requester)||'Raider')+' <button data-req="'+v.id+'" data-yes="1">ACCEPT</button> <button data-req="'+v.id+'" data-yes="0">DECLINE</button></p>').join('')||'<p>No requests</p>')+'<h2>📤 SENT</h2>'+(rows.filter(v=>v.status==='pending'&&v.requester===id).map(v=>'<p>⏳ '+safeText(names.get(v.recipient)||'Raider')+'</p>').join('')||'<p>No pending requests</p>')+'<p id="friendMsg"></p>';
-$('friendAdd').onclick=async()=>{let n=prompt('Friend Raider name:');if(n===null)return;try{await accountDb('rpc/raider_friend_send',{method:'POST',body:JSON.stringify({p_name:n.trim()})});friendsScreen()}catch(e){$('friendMsg').textContent='⚠️ '+e.message}};
-el.querySelectorAll('[data-req]').forEach(b=>b.onclick=async()=>{try{await accountDb('rpc/raider_friend_respond',{method:'POST',body:JSON.stringify({p_id:b.dataset.req,p_accept:b.dataset.yes==='1'})});friendsScreen()}catch(e){$('friendMsg').textContent='⚠️ '+e.message}})
-}catch(e){el.textContent='⚠️ '+e.message}}
+
+async function acceptedFriendRoster(){
+ if(!accountSession)return [];
+ if(!account)await loadAccount();
+ const id=account.id,rows=await accountDb('raider_friends?select=requester,recipient,status&status=eq.accepted&or=(requester.eq.'+id+',recipient.eq.'+id+')');
+ const ids=[...new Set((rows||[]).map(r=>r.requester===id?r.recipient:r.requester))];
+ if(!ids.length)return [];
+ const profiles=await accountDb('raider_profiles?select=user_id,display_name&user_id=in.('+ids.join(',')+')');
+ return (profiles||[]).sort((a,b)=>a.display_name.localeCompare(b.display_name));
+}
+async function incomingRoomInvites(){
+ if(!accountSession)return [];
+ if(!account)await loadAccount();
+ return await accountDb('raider_room_invites?select=id,sender,room_code,join_token,expires_at&recipient=eq.'+account.id+'&expires_at=gt.'+encodeURIComponent(new Date().toISOString())+'&order=created_at.desc&limit=30')||[];
+}
+async function joinFriendInvite(invite){
+ if(!invite||!invite.room_code||!invite.join_token)return;
+ netDisconnect();net.name=playerName();mode='lobby';menu.style.display='flex';card.style.maxWidth='880px';
+ card.innerHTML='<main class="arenaTeam"><h1>🤝 JOINING FRIEND</h1><p id="connectionInfo">Connecting to room '+safeText(invite.room_code)+'...</p><button id="backLobby">⬅ BACK</button></main>';
+ $('backLobby').onclick=()=>{netDisconnect();mode='menu';renderShop()};
+ openTeamSocket({url:defaultServer(),name:playerName(),action:'join',room:invite.room_code,password:'',inviteToken:invite.join_token});
+}
+async function friendsScreen(){
+ const el=raiderPanel('🤝 FRIENDS');
+ if(!accountSession){el.textContent='Sign in to search players, add friends and receive room invitations.';return}
+ try{
+  if(!account)await loadAccount();
+  const id=account.id;
+  const rows=await accountDb('raider_friends?select=id,requester,recipient,status&or=(requester.eq.'+id+',recipient.eq.'+id+')&order=created_at.desc')||[];
+  const uids=[...new Set(rows.flatMap(v=>[v.requester,v.recipient]))];
+  const profiles=uids.length?await accountDb('raider_profiles?select=user_id,display_name&user_id=in.('+uids.join(',')+')'):[];
+  const names=new Map((profiles||[]).map(v=>[v.user_id,v.display_name]));
+  const accepted=new Set(rows.filter(v=>v.status==='accepted').map(v=>v.requester===id?v.recipient:v.requester));
+  const pending=new Set(rows.filter(v=>v.status==='pending').map(v=>v.requester===id?v.recipient:v.requester));
+  const invites=await incomingRoomInvites();
+  const inviters=[...new Set(invites.map(v=>v.sender))];
+  const inviteProfiles=inviters.length?await accountDb('raider_profiles?select=user_id,display_name&user_id=in.('+inviters.join(',')+')'):[];
+  const inviteNames=new Map((inviteProfiles||[]).map(v=>[v.user_id,v.display_name]));
+  el.innerHTML='<h2>🔎 FIND PLAYERS</h2><p>Type part of a Raider name to see every matching account.</p><input id="friendSearch" placeholder="Search Raider names..." maxlength="18" autocomplete="off" style="width:min(420px,95%);padding:12px"><div id="friendSearchResults" style="max-height:220px;overflow:auto;margin:8px 0"></div>'+
+   '<h2>🎮 ROOM INVITATIONS</h2><div id="friendRoomInvites">'+(invites.length?invites.map(v=>'<p>🎮 '+safeText(inviteNames.get(v.sender)||'Friend')+' invited you to a room <button data-joininvite="'+safeText(v.id)+'">JOIN ROOM</button></p>').join(''):'<p>No active room invitations. Ask a friend to invite you!</p>')+'</div>'+
+   '<h2>👥 YOUR FRIENDS</h2>'+(rows.filter(v=>v.status==='accepted').map(v=>'<p>🤝 '+safeText(names.get(v.requester===id?v.recipient:v.requester)||'Raider')+'</p>').join('')||'<p>No friends yet</p>')+
+   '<h2>📩 REQUESTS</h2>'+(rows.filter(v=>v.status==='pending'&&v.recipient===id).map(v=>'<p>'+safeText(names.get(v.requester)||'Raider')+' <button data-req="'+safeText(v.id)+'" data-yes="1">ACCEPT</button> <button data-req="'+safeText(v.id)+'" data-yes="0">DECLINE</button></p>').join('')||'<p>No requests</p>')+
+   '<h2>📤 SENT</h2>'+(rows.filter(v=>v.status==='pending'&&v.requester===id).map(v=>'<p>⏳ '+safeText(names.get(v.recipient)||'Raider')+'</p>').join('')||'<p>No pending requests</p>')+'<p id="friendMsg" role="status"></p>';
+  el.querySelectorAll('[data-joininvite]').forEach(b=>b.onclick=()=>{const invite=invites.find(v=>v.id===b.dataset.joininvite);if(invite)joinFriendInvite(invite)});
+  el.querySelectorAll('[data-req]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await accountDb('rpc/raider_friend_respond',{method:'POST',body:JSON.stringify({p_id:b.dataset.req,p_accept:b.dataset.yes==='1'})});friendsScreen()}catch(e){const m=$('friendMsg');if(m)m.textContent='⚠️ '+e.message;b.disabled=false}});
+  const input=$('friendSearch'),results=$('friendSearchResults');let queryVersion=0,searchTimer=0;
+  async function search(q,offset,append){
+   const version=++queryVersion;
+   if(!q){results.innerHTML='<p>Start typing to find players.</p>';return}
+   if(!append)results.innerHTML='<p>🔎 Searching...</p>';
+   try{
+    const term=q.trim().replace(/[*,()%]/g,'');
+    const matches=await accountDb('raider_profiles?select=user_id,display_name&display_name=ilike.'+encodeURIComponent('*'+term+'*')+'&order=display_name.asc&limit=50&offset='+offset);
+    if(version!==queryVersion||!results.isConnected)return;
+    if(!append)results.innerHTML='';
+    results.querySelectorAll('[data-more]').forEach(x=>x.remove());
+    for(const p of matches||[]){
+     if(p.user_id===id)continue;
+     const status=accepted.has(p.user_id)?'✓ FRIEND':pending.has(p.user_id)?'⏳ PENDING':'➕ ADD';
+     const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px;border-bottom:1px solid #47618c';
+     const label=document.createElement('span');label.textContent='👤 '+p.display_name;
+     const btn=document.createElement('button');btn.textContent=status;btn.disabled=accepted.has(p.user_id)||pending.has(p.user_id);btn.style.cssText='padding:7px 12px;min-width:85px';
+     btn.onclick=async()=>{btn.disabled=true;try{const result=await accountDb('rpc/raider_friend_send_id',{method:'POST',body:JSON.stringify({p_user_id:p.user_id})});btn.textContent='⏳ SENT';pending.add(p.user_id);const m=$('friendMsg');if(m)m.textContent='✓ '+result}catch(e){btn.disabled=false;const m=$('friendMsg');if(m)m.textContent='⚠️ '+e.message}};
+     row.append(label,btn);results.append(row);
+    }
+    if(offset===0&&(!matches||!matches.length))results.innerHTML='<p>No matching Raiders found.</p>';
+    if(matches&&matches.length===50){const more=document.createElement('button');more.textContent='SHOW MORE MATCHES';more.dataset.more='1';more.onclick=()=>search(q,offset+50,true);results.append(more)}
+   }catch(e){if(version===queryVersion)results.innerHTML='<p>⚠️ '+safeText(e.message)+'</p>'}
+  }
+  input.oninput=()=>{clearTimeout(searchTimer);const q=input.value.trim();searchTimer=setTimeout(()=>search(q,0,false),200)};
+  results.innerHTML='<p>Start typing to find players.</p>';
+ }catch(e){el.textContent='⚠️ '+e.message}
+}
+async function showWaitingFriendInvites(roomCode){
+ const el=$('waitingFriendInvites');if(!el||!net.active||!net.host||net.room!==roomCode)return;
+ if(!accountSession){el.innerHTML='<p>Sign in to invite friends directly. Room code sharing still works.</p>';return}
+ try{
+  const friends=await acceptedFriendRoster();
+  if(!el.isConnected||net.room!==roomCode)return;
+  el.innerHTML='<h2>🤝 INVITE FRIENDS</h2>'+(friends.length?friends.map(p=>'<p>👤 '+safeText(p.display_name)+' <button data-invitefriend="'+safeText(p.user_id)+'">🎮 INVITE</button></p>').join(''):'<p>Add friends in the Friends menu first, then invite them here.</p>')+'<p id="inviteFriendStatus" role="status"></p>';
+  el.querySelectorAll('[data-invitefriend]').forEach(btn=>btn.onclick=async()=>{
+   const recipient=btn.dataset.invitefriend;btn.disabled=true;
+   try{
+    if(!net.active||!net.host||net.room!==roomCode||!net.inviteToken)throw Error('This room is no longer available');
+    const payload={sender:account.id,recipient,room_code:roomCode,join_token:net.inviteToken,expires_at:new Date(Date.now()+30*60000).toISOString()};
+    await accountDb('raider_room_invites?on_conflict=sender,recipient,room_code',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(payload)});
+    btn.textContent='✓ INVITED';const status=$('inviteFriendStatus');if(status)status.textContent='Invitation sent! Your friend can join from FRIENDS without the room password.';
+   }catch(e){btn.disabled=false;const status=$('inviteFriendStatus');if(status)status.textContent='⚠️ '+e.message}
+  });
+ }catch(e){if(el.isConnected)el.textContent='⚠️ '+e.message}
+}
 
 function shopView(){
 let gl=save.gunLevels[save.gun]||0;
