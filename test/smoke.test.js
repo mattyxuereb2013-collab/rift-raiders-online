@@ -31,3 +31,16 @@ assert.ok(server.includes('stripeVerify(raw,'));
 assert.ok(server.includes("session?.payment_status==='paid'"));
 assert.ok(server.includes('STRIPE_WEBHOOK_SECRET'));
 });
+
+test('account signup offers confirmation resend and helpful rate limit messages',()=>{
+ assert.ok(html.includes('id="accountResend"'));
+ assert.ok(html.includes("'/auth/v1/resend'"));
+ assert.ok(html.includes('rift_signup_cooldown'));
+ assert.ok(html.includes('email sending is temporarily limited'));
+});
+test('latest upgrades have prominent navigation and offline cache is versioned',()=>{
+ assert.ok(html.includes('✨ NEW ACCOUNT FEATURES'));
+ const sw=fs.readFileSync('sw.js','utf8');
+ assert.ok(sw.includes('rift-raiders-shell-v2'));
+ assert.ok(sw.includes("cache:'no-store'"));
+});
