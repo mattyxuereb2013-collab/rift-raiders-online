@@ -116,6 +116,14 @@ const server=http.createServer((req,res)=>{
     .then(cloudRankRows).then(rows=>jsonResponse(res,200,rows))
     .catch(e=>{console.error(e.message);jsonResponse(res,503,{error:'Leaderboard temporarily unavailable'})});return;
  }
+ if(pathname==='/rank/history'&&req.method==='GET'){
+  if(!permanentScores){jsonResponse(res,503,{error:'Rank archive requires permanent storage'});return}
+  const name=cleanName(new URL(req.url,'http://localhost').searchParams.get('name'));
+  const key=encodeURIComponent(name.toLowerCase());
+  dbCall('raider_rank_seasons?select=season,rank_points,updated_at&player_key=eq.'+key+'&order=season.desc&limit=40')
+   .then(rows=>jsonResponse(res,200,rows))
+   .catch(e=>{console.error(e.message);jsonResponse(res,503,{error:'Rank archive unavailable'})});return;
+ }
  if(pathname==='/rank'&&req.method==='POST'){
   let body='',done=false;req.on('data',c=>{body+=c;if(body.length>2048){done=true;req.destroy()}});
   req.on('end',()=>{if(done)return;let name,points,season;try{
