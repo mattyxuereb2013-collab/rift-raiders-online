@@ -111,8 +111,52 @@ function decodeFrames(c,chunk){
   catch(e){console.error('Bad client message:',e.message)}
  }
 }
+
+// Seasonal battle pass: 30 levels; paid unlocks are granted ONLY after a verified Stripe webhook.
+const STRIPE_SECRET=process.env.STRIPE_SECRET_KEY||'';
+const STRIPE_WEBHOOK_SECRET=process.env.STRIPE_WEBHOOK_SECRET||'';
+async function passUser(req){let auth=String(req.headers.authorization||'');if(!auth.startsWith('Bearer '))throw Error('Sign in first');let token=auth.slice(7);let r=await fetch(publicDbUrl+'/auth/v1/user',{headers:{apikey:publicDbKey,Authorization:'Bearer '+token},signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error('Session expired; sign in again');let u=await r.json();if(!u.id)throw Error('Account not found');return u}
+async function passState(userId){let season=rankSeason();let rows=await dbCall('raider_battle_pass?select=xp,premium,free_claimed,premium_claimed&user_id=eq.'+encodeURIComponent(userId)+'&season=eq.'+season);return {season,xp:0,premium:false,free_claimed:[],premium_claimed:[],...(rows[0]||{}),price_eur:2,levels:30}}
+function readJson(req,limit=4096){return new Promise((resolve,reject)=>{let chunks=[],size=0;req.on('data',c=>{size+=c.length;if(size>limit){reject(Error('Request too large'));req.destroy()}else chunks.push(c)});req.on('end',()=>{try{resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')||'{}'))}catch(e){reject(e)}});req.on('error',reject)})}
+async function stripeCheckout(userId,season,origin){let body=new URLSearchParams();
+body.set('mode','payment');body.set('success_url',origin+'/?battlepass=success');body.set('cancel_url',origin+'/?battlepass=cancel');
+body.set('client_reference_id',userId);body.set('metadata[user_id]',userId);body.set('metadata[season]',season);
+body.set('line_items[0][price_data][currency]','eur');body.set('line_items[0][price_data][unit_amount]','200');body.set('line_items[0][price_data][product_data][name]','RIFT RAIDERS Premium Battle Pass '+season);body.set('line_items[0][quantity]','1');
+let r=await fetch('https://api.stripe.com/v1/checkout/sessions',{method:'POST',headers:{Authorization:'Bearer '+STRIPE_SECRET,'Content-Type':'application/x-www-form-urlencoded'},body:body.toString(),signal:AbortSignal.timeout(10000)});let v=await r.json();if(!r.ok||!v.url)throw Error(v.error?.message||'Could not start secure checkout');return v.url}
+function stripeVerify(payload,header){if(!STRIPE_WEBHOOK_SECRET||!header)return false;let t=header.match(/(?:^|,)t=(\d+)/),signatures=[...header.matchAll(/(?:^|,)v1=([a-f0-9]{64})/g)].map(m=>m[1]);if(!t||Math.abs(Date.now()/1000-Number(t[1]))>300)return false;let digest=crypto.createHmac('sha256',STRIPE_WEBHOOK_SECRET).update(t[1]+'.'+payload).digest('hex');return signatures.some(sig=>crypto.timingSafeEqual(Buffer.from(sig,'hex'),Buffer.from(digest,'hex')))}
+
 const server=http.createServer((req,res)=>{
  let pathname;try{pathname=new URL(req.url,'http://localhost').pathname}catch(e){res.writeHead(400);res.end();return}
+ if(pathname==='/battlepass/webhook'&&req.method==='POST'){
+  let raw='',size=0;req.on('data',c=>{size+=c.length;if(size>65536){req.destroy();return}raw+=c.toString('utf8')});
+  req.on('end',async()=>{if(!stripeVerify(raw,req.headers['stripe-signature'])){jsonResponse(res,400,{error:'Invalid payment signature'});return}
+   try{let event=JSON.parse(raw),session=event.data?.object;
+    if(event.type==='checkout.session.completed'&&session?.payment_status==='paid'&&session?.currency==='eur'&&session?.amount_total===200&&session?.metadata?.user_id&&session?.metadata?.season){
+      await dbCall('rpc/raider_pass_activate',{method:'POST',body:JSON.stringify({p_user_id:session.metadata.user_id,p_season:session.metadata.season,p_stripe_session:session.id})});
+    }
+    jsonResponse(res,200,{received:true});
+   }catch(e){console.error('Battle pass webhook:',e.message);jsonResponse(res,503,{error:'Payment activation will be retried'})}
+  });return;
+ }
+ if(pathname.startsWith('/battlepass/')&&['/battlepass/status','/battlepass/claim','/battlepass/checkout'].includes(pathname)){
+  (async()=>{try{
+   if(!permanentScores)throw Error('Battle Pass database not configured on server');
+   const user=await passUser(req),season=rankSeason();
+   if(pathname==='/battlepass/status'&&req.method==='GET'){jsonResponse(res,200,await passState(user.id));return}
+   if(pathname==='/battlepass/claim'&&req.method==='POST'){let v=await readJson(req),level=Number(v.level),premium=v.track==='premium';
+    if(!Number.isInteger(level)||level<1||level>30||!['free','premium'].includes(v.track))throw Error('Invalid reward');
+    let granted=await dbCall('rpc/raider_pass_claim',{method:'POST',body:JSON.stringify({p_user_id:user.id,p_season:season,p_level:level,p_premium:premium})});
+    jsonResponse(res,200,{granted:granted===true,level,track:v.track});return;
+   }
+   if(pathname==='/battlepass/checkout'&&req.method==='POST'){
+    if(!STRIPE_SECRET||!STRIPE_WEBHOOK_SECRET){jsonResponse(res,503,{error:'Premium checkout is not configured yet'});return}
+    let state=await passState(user.id);if(state.premium){jsonResponse(res,409,{error:'Premium already unlocked for this season'});return}
+    let origin=process.env.GAME_PUBLIC_URL||'https://rift-raiders-online.onrender.com';
+    jsonResponse(res,200,{url:await stripeCheckout(user.id,season,origin)});return;
+   }
+   jsonResponse(res,405,{error:'Method not allowed'});
+  }catch(e){jsonResponse(res,/sign in|session expired/i.test(e.message)?401:400,{error:e.message})}})();return;
+ }
  if(pathname==='/leaderboard'&&req.method==='GET'){
   checkRankSeason();
   if(!permanentScores){accountRankRows(scores.slice(0,30)).then(rows=>jsonResponse(res,200,rows)).catch(()=>jsonResponse(res,200,scores.slice(0,30).map(withRank)));return}
