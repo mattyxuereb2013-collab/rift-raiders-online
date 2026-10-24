@@ -391,9 +391,9 @@ $('accountLogin').onclick=()=>submit(false);$('accountSignup').onclick=()=>submi
 }
 save.highScores=bestRuns(save.highScores).slice(0,10);persist();
 let activeShop='guns';let mode='menu',p={x:1300,y:1000,hp:100,max:100,r:17},enemies=[],bullets=[],effects=[],drops=[],drones=[],chests=[],eventName='',eventUntil=0,boostUntil=0,downedUntil=0,reviveHold=0,megaBosses=0,time=0,wave=1,kills=0,level=1,xp=0,need=25,spawn=0,shot=0,aim=0,firing=false,keys={},joy={x:0,y:0},dashCD=0,inv=0,skillLevels={},skillTimers={},boss=null,last=0,toastUntil=0,camX=0,camY=0,borderTick=0,petTimer=0,catCoinTimer=0,petFxTimer=0,freezeTimer=0,upgradeOpen=false,weaponBonus=0,muted=false,audio=null,musicTimer=null;
-const net={active:false,host:false,sock:null,id:'',room:'',peers:{},clock:0,snapshot:0,name:'Raider',lastWorld:0};
+const net={active:false,host:false,sock:null,id:'',room:'',peers:{},clock:0,snapshot:0,name:'Raider',lastWorld:0,inviteToken:''};
 function netSend(obj){if(net.active&&net.sock&&net.sock.readyState===1)try{net.sock.send(JSON.stringify(obj))}catch(e){}}
-function netDisconnect(){let sock=net.sock;net.active=false;net.sock=null;net.peers={};net.host=false;net.id='';$('onlineStatus').textContent='';if(sock)try{sock.close()}catch(e){}}
+function netDisconnect(){let sock=net.sock;net.active=false;net.sock=null;net.peers={};net.host=false;net.id='';net.room='';net.inviteToken='';$('onlineStatus').textContent='';if(sock)try{sock.close()}catch(e){}}
 function safeText(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function playerName(){return String(save.playerName||'').trim().slice(0,18)}
 function savePlayerName(name){let clean=String(name||'').trim().replace(/[<>]/g,'').slice(0,18);if(!clean)return false;save.playerName=clean;net.name=clean;persist();try{localStorage.setItem('rift_raiders_player_name',clean)}catch(e){}return true}
@@ -428,13 +428,18 @@ function onlineLobby(){
  if(password.length<4||password.length>32){$('connectionInfo').textContent='Password must have 4–32 characters.';return}
  if(action==='join'&&room.length<4){$('connectionInfo').textContent='Enter the lobby code from the host.';return}
  $('connectionInfo').textContent='Connecting to game server…';$('connectTeam').disabled=true;
- let ws;try{ws=new WebSocket(url)}catch(e){$('connectionInfo').textContent='Invalid server address.';$('connectTeam').disabled=false;return}
- if(!savePlayerName(name)){$('connectionInfo').textContent='Enter a player name first!';$('connectTeam').disabled=false;try{ws.close()}catch(e){}return}net.sock=ws;
- ws.onopen=()=>ws.send(JSON.stringify({t:action,room,password,map:save.map,name}));
- ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(err){return}netMessage(m)};
- ws.onerror=()=>{let info=$('connectionInfo');if(info)info.textContent='Cannot connect. Start the server and check its address.'};
- ws.onclose=()=>{let wasActive=net.active;net.active=false;net.sock=null;if(wasActive){mode='menu';menu.style.display='flex';card.innerHTML='<h1>DISCONNECTED</h1><p>The game server or host disconnected.</p><button id="backMain">MAIN MENU</button>';$('backMain').onclick=renderShop}else if(mode==='lobby'&&$('connectTeam')){$('connectTeam').disabled=false;$('connectionInfo').textContent='Connection closed. Check the address, lobby code and password.'}};
+
+ openTeamSocket({url,name,action,room,password});
  }
+}
+function openTeamSocket({url,name,action,room,password='',inviteToken=''}) {
+ let ws;try{ws=new WebSocket(url)}catch(e){const info=$('connectionInfo');if(info)info.textContent='Invalid server address.';const btn=$('connectTeam');if(btn)btn.disabled=false;return}
+ if(!savePlayerName(name)){const info=$('connectionInfo');if(info)info.textContent='Enter a player name first!';const btn=$('connectTeam');if(btn)btn.disabled=false;try{ws.close()}catch(e){}return}
+ net.sock=ws;
+ ws.onopen=()=>ws.send(JSON.stringify({t:action,room,password,map:save.map,name,inviteToken}));
+ ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(err){return}netMessage(m)};
+ ws.onerror=()=>{const info=$('connectionInfo');if(info)info.textContent='Cannot connect to the game server.'};
+ ws.onclose=()=>{if(net.sock!==ws)return;let wasActive=net.active;net.active=false;net.sock=null;if(wasActive){mode='menu';menu.style.display='flex';card.innerHTML='<h1>DISCONNECTED</h1><p>The game server or host disconnected.</p><button id="backMain">MAIN MENU</button>';$('backMain').onclick=renderShop}else if(mode==='lobby'){const btn=$('connectTeam');if(btn)btn.disabled=false;const info=$('connectionInfo');if(info)info.textContent='Connection closed. Check your room invitation, lobby code or password.'}};
 }
 function waitingRoom(){
  mode='waiting';menu.style.display='flex';let peers=Object.values(net.peers),count=peers.length+1;
@@ -443,15 +448,15 @@ function waitingRoom(){
  <div class="arenaPills" style="justify-content:center"><div class="arenaPill">🗺️ ${safeText(MAPS[save.map]?.[0]||'NEON CITY')}</div><div class="arenaPill">👥 ${count}/4 PLAYERS</div></div>
  <div class="waitingPlayers">${[...['👑 '+net.name,...peers.map(x=>'🤝 '+x.name)],...Array(Math.max(0,4-count)).fill('➕ OPEN SLOT')].map((x,i)=>'<div><span style="font-size:38px">'+(i<count?'🦸':'➕')+'</span><span>'+safeText(x)+'</span></div>').join('')}</div>
  ${net.host?'<button id="startTeam" '+(count<2?'disabled':'')+'>▶ START TEAM MATCH</button><p>'+(count<2?'Waiting for a teammate to join…':'Squad ready! Start whenever you like.')+'</p>':'<p>⏳ Waiting for the host to start the match…</p>'}
- <button id="leaveTeam">⬅ LEAVE SQUAD</button></main>`;
- if(net.host)$('startTeam').onclick=()=>netSend({t:'start'});
+ <div id="waitingFriendInvites"></div><button id="leaveTeam">⬅ LEAVE SQUAD</button></main>`;
+ if(net.host){$('startTeam').onclick=()=>netSend({t:'start'});showWaitingFriendInvites(net.room)}
  $('leaveTeam').onclick=()=>{netDisconnect();mode='menu';renderShop()};
 }
 function netMessage(m){
  if(m.t==='error'){let info=$('connectionInfo');if(info)info.textContent=m.message||'Could not join lobby.';let b=$('connectTeam');if(b)b.disabled=false;return}
  if(m.t==='welcome'){
  net.active=true;net.host=!!m.host;net.id=m.id;net.room=m.room;net.peers={};for(let x of m.players||[])net.peers[x.id]={id:x.id,name:x.name,x:0,y:0,hp:100};
- if(MAPS[m.map])save.map=m.map;waitingRoom();return;
+ net.inviteToken=typeof m.inviteToken==='string'?m.inviteToken:'';if(MAPS[m.map])save.map=m.map;waitingRoom();return;
  }
  if(m.t==='start'&&net.active){begin();message('🤝 TEAM MATCH STARTED — '+net.room);return}
  if(m.t==='join'){net.peers[m.id]={id:m.id,name:m.name,x:0,y:0,hp:100};if(mode==='waiting')waitingRoom();else message('🤝 '+m.name+' joined!');return}
