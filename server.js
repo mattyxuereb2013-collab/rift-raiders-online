@@ -70,7 +70,35 @@ function processMsg(c,m){if(!m||typeof m!=='object'||typeof m.t!=='string')retur
  if(m.t==='reward'&&c.id===room.host){let coins=Math.max(0,Math.min(50,Math.floor(m.coins)||0));if(coins)broadcast(room,{t:'reward',coins},c);return}
  if((m.t==='hurt'||m.t==='xp'||m.t==='revive'||m.t==='bonus')&&c.id===room.host){let dest=[...room.players].find(x=>x.id===m.to);if(dest){if(m.t==='hurt')send(dest,{t:'hurt',damage:Math.max(0,Math.min(60,Number(m.damage)||0))});else if(m.t==='xp')send(dest,{t:'xp',xp:Math.max(0,Math.min(100,Math.floor(m.xp)||0))});else if(m.t==='revive')send(dest,{t:'revive'});else send(dest,{t:'bonus',kind:['coins','heal','boost'].includes(m.kind)?m.kind:'heal',amount:Math.max(0,Math.min(200,Number(m.amount)||0))})}return}
 }
-function decodeFrames(c,chunk){if(c.dead)return;c.buf=Buffer.concat([c.buf,chunk]);if(c.buf.length>140000){closeClient(c);return}while(c.buf.length>=2){let opcode=c.buf[0]&15,b1=c.buf[1],masked=!!(b1&128),len=b1&127,off=2;if(len===126){if(c.buf.length<4)return;len=c.buf.readUInt16BE(2);off=4}else if(len===127){closeClient(c);return}if(len>65535||!masked){closeClient(c);return}if(c.buf.length<off+4+len)return;let mask=c.buf.subarray(off,off+4),body=c.buf.subarray(off+4,off+4+len);c.buf=c.buf.subarray(off+4+len);if(opcode===8){closeClient(c);return}if(opcode===9){try{c.socket.write(Buffer.from([0x8a,0]))}catch(e){}continue}if(opcode!==1)continue;let raw=Buffer.allocUnsafe(len);for(let i=0;i<len;i++)raw[i]=body[i]^mask[i%4];try{processMsg(c,JSON.parse(raw.toString('utf8')))}catch(e){console.error('Bad client message:',e.message)}}}
+function decodeFrames(c,chunk){
+ if(c.dead)return;
+ c.buf=Buffer.concat([c.buf,chunk]);
+ if(c.buf.length>140000){closeClient(c);return}
+ while(c.buf.length>=2){
+  const first=c.buf[0],opcode=first&15,fin=!!(first&128),b1=c.buf[1],masked=!!(b1&128);
+  let len=b1&127,off=2;
+  if(len===126){if(c.buf.length<4)return;len=c.buf.readUInt16BE(2);off=4}
+  else if(len===127){closeClient(c);return}
+  if(len>65535||!masked||((opcode===8||opcode===9||opcode===10)&&(!fin||len>125))){closeClient(c);return}
+  if(c.buf.length<off+4+len)return;
+  const mask=c.buf.subarray(off,off+4),body=c.buf.subarray(off+4,off+4+len);
+  c.buf=c.buf.subarray(off+4+len);
+  const raw=Buffer.allocUnsafe(len);
+  for(let i=0;i<len;i++)raw[i]=body[i]^mask[i%4];
+  if(opcode===8){closeClient(c);return}
+  if(opcode===9){try{c.socket.write(Buffer.concat([Buffer.from([0x8a,raw.length]),raw]))}catch(e){closeClient(c)}continue}
+  if(opcode===10)continue;
+  if(opcode===1){if(c.fragmented){closeClient(c);return}c.fragmented=fin?null:[raw]}
+  else if(opcode===0){if(!c.fragmented){closeClient(c);return}c.fragmented.push(raw)}
+  else{closeClient(c);return}
+  if(!fin)continue;
+  const payload=opcode===1?raw:Buffer.concat(c.fragmented);
+  c.fragmented=null;
+  if(payload.length>65535){closeClient(c);return}
+  try{processMsg(c,JSON.parse(payload.toString('utf8')))}
+  catch(e){console.error('Bad client message:',e.message)}
+ }
+}
 const server=http.createServer((req,res)=>{
  let pathname;try{pathname=new URL(req.url,'http://localhost').pathname}catch(e){res.writeHead(400);res.end();return}
  if(pathname==='/leaderboard'&&req.method==='GET'){if(!permanentScores){jsonResponse(res,200,scores.slice(0,30));return}dbCall('raider_scores?select=name,wave,kills,mode&order=wave.desc,kills.desc&limit=30').then(rows=>jsonResponse(res,200,rows)).catch(e=>{console.error(e.message);jsonResponse(res,503,{error:'Leaderboard temporarily unavailable'})});return}
@@ -90,7 +118,7 @@ server.on('upgrade',(req,socket)=>{
  let key=req.headers['sec-websocket-key'];if(!key||typeof key!=='string'||!/^[-A-Za-z0-9+/=]{20,32}$/.test(key)){socket.destroy();return}
  const accept=crypto.createHash('sha1').update(key+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
  socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+accept+'\r\n\r\n');
- let c={id:crypto.randomBytes(8).toString('hex'),socket,room:null,name:'Raider',dead:false,buf:Buffer.alloc(0)};
+ let c={id:crypto.randomBytes(8).toString('hex'),socket,room:null,name:'Raider',dead:false,buf:Buffer.alloc(0),fragmented:null};
  clients.add(c);socket.on('data',d=>decodeFrames(c,d));socket.on('error',()=>closeClient(c));socket.on('close',()=>closeClient(c));
 });
 server.listen(PORT,HOST,()=>console.log('RIFT RAIDERS online lobby server: http://localhost:'+PORT+' | players 2–4 | private password lobbies'));
