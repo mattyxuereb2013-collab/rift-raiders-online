@@ -197,7 +197,7 @@ const tabs=[['guns','🔫 GUN SHOP'],['maps','🗺️ MAP SHOP'],['pets','🐾 P
 const catalog={guns:GUNS,maps:MAPS,pets:PETS,skins:SKINS}[activeShop];
 const heading={guns:'🔫 SHOOTERS',maps:'🗺️ MAPS',pets:'🐾 PET COLLECTION',skins:'🕷️ SKIN COLLECTION'}[activeShop];
 const isRoll=activeShop==='pets'||activeShop==='skins';
-const items=Object.entries(catalog).map(([id,a])=>isRoll?
+const items=Object.entries(catalog).sort((a,b)=>activeShop==='pets'?b[1][2]-a[1][2]:0).map(([id,a])=>isRoll?
 `<button data-type="${activeShop}" data-id="${id}" class="${save[activeShop.slice(0,-1)]===id?'sel':''}">${a[0]}<small>${save[activeShop][id]?'✓ OWNED'+(activeShop==='pets'?' · LV '+petLevel(id)+(save.pets[id]>1?' · '+(save.pets[id]-1)+' SPARE':''):'')+(save[activeShop.slice(0,-1)]===id?' · EQUIPPED':''):'🔒 LOCKED'}</small><small>${id==='none'||id==='standard'?'STARTER':chanceText(activeShop,id)+' DROP CHANCE'}</small>${activeShop==='skins'?'<small>Speed ×'+a[2].toFixed(2)+'</small>':activeShop==='pets'?'<small style="color:#ffe39c">'+PET_POWERS[id]+'</small>':''}</button>`:shopItem(activeShop,id,a)).join('');
 return `<h1>RIFT RAIDERS</h1><p>Defeat bosses every 10 waves · Collect powerful pets · Master 5-level skills · Team up online</p>
 <p><b>👤 ${safeText(playerName()||'NAME NOT SET')}</b> · <button id="changePlayerName">✏️ CHANGE NAME</button></p><p><b>🪙 ${save.coins} COINS</b> · Best: ${save.best} kills · SOLO + ONLINE</p>
