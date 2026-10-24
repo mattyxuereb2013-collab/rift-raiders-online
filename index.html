@@ -180,14 +180,14 @@ function onlineLobby(){
  if(!playerName()){choosePlayerName(onlineLobby);return}
  netDisconnect();net.name=playerName();mode='lobby';menu.style.display='flex';
  let def=defaultServer();
- card.innerHTML=`<h1>ONLINE TEAMS</h1><p>Create a private team or join a friend's lobby (2–4 players).</p>
+ card.innerHTML=`<main class="arenaTeam"><div class="arenaBrand">⚡ RIFT <span style="color:#ffe36c">RAIDERS</span></div><h1>🌐 TEAM ARENA</h1><p>Build your squad · Private rooms · Up to 4 players</p><div class="arenaEvent"><h2>🤝 SQUAD UP!</h2><p>Create a private room or join your friends with their lobby code.</p></div>
  <input type="hidden" id="serverURL" value="${safeText(def)}"><p>🌐 Automatically connected to the RIFT RAIDERS online server.</p>
  <p><label>Your player name<br><input id="playerName" value="${safeText(playerName())}" maxlength="18" autocomplete="nickname"></label></p>
  <div class="lobbyTabs"><button id="chooseCreate" class="sel">➕ CREATE LOBBY</button><button id="chooseJoin">🔑 JOIN LOBBY</button></div>
  <div id="createFields"><p><label>Choose lobby password (4–32 characters)<br><input id="createPassword" type="password" minlength="4" maxlength="32" placeholder="Your secret password" autocomplete="new-password"></label></p><p>You'll receive a lobby code to share with friends.</p></div>
  <div id="joinFields" style="display:none"><p><label>Lobby code<br><input id="roomCode" maxlength="8" placeholder="Example: Q7KM2P" autocapitalize="characters"></label></p><p><label>Lobby password<br><input id="joinPassword" type="password" maxlength="32" placeholder="Ask the host for the password" autocomplete="off"></label></p></div>
  <p id="connectionInfo" role="status">Ready! Choose a lobby password to create a private room.</p>
- <button id="connectTeam">➕ CREATE LOBBY</button><button id="backLobby">BACK</button>`;
+ <button id="connectTeam">➕ CREATE LOBBY</button> <button id="backLobby">⬅ BACK TO ARENA</button></main>`;
  let action='create';function setAction(a){action=a;$('chooseCreate').classList.toggle('sel',a==='create');$('chooseJoin').classList.toggle('sel',a==='join');$('createFields').style.display=a==='create'?'block':'none';$('joinFields').style.display=a==='join'?'block':'none';$('connectTeam').textContent=a==='create'?'➕ CREATE LOBBY':'🔑 JOIN LOBBY'}
  $('chooseCreate').onclick=()=>setAction('create');$('chooseJoin').onclick=()=>setAction('join');
  $('backLobby').onclick=()=>{netDisconnect();mode='menu';renderShop()};
@@ -199,7 +199,7 @@ function onlineLobby(){
  if(action==='join'&&room.length<4){$('connectionInfo').textContent='Enter the lobby code from the host.';return}
  $('connectionInfo').textContent='Connecting to game server…';$('connectTeam').disabled=true;
  let ws;try{ws=new WebSocket(url)}catch(e){$('connectionInfo').textContent='Invalid server address.';$('connectTeam').disabled=false;return}
- if(!savePlayerName(name)){$('lobbyError').textContent='Enter a player name first!';try{ws.close()}catch(e){}return}net.sock=ws;
+ if(!savePlayerName(name)){$('connectionInfo').textContent='Enter a player name first!';$('connectTeam').disabled=false;try{ws.close()}catch(e){}return}net.sock=ws;
  ws.onopen=()=>ws.send(JSON.stringify({t:action,room,password,map:save.map,name}));
  ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(err){return}netMessage(m)};
  ws.onerror=()=>{let info=$('connectionInfo');if(info)info.textContent='Cannot connect. Start the server and check its address.'};
@@ -208,12 +208,12 @@ function onlineLobby(){
 }
 function waitingRoom(){
  mode='waiting';menu.style.display='flex';let peers=Object.values(net.peers),count=peers.length+1;
- card.innerHTML=`<h1>TEAM LOBBY</h1><h2>🔑 CODE: <span style="color:#ffda86">${safeText(net.room)}</span></h2>
- <p>Share the <b>code and password</b> with friends. The host chooses the map. Up to 4 players.</p>
- <p>🗺️ ${safeText(MAPS[save.map]?.[0]||'NEON CITY')} · <b>${count}/4 players</b></p>
- <div class="waitingPlayers">${['👑 '+net.name,...peers.map(x=>'🤝 '+x.name)].map(x=>'<div>'+safeText(x)+'</div>').join('')}</div>
- ${net.host?'<button id="startTeam" '+(count<2?'disabled':'')+'>▶ START TEAM MATCH</button><p>'+(count<2?'Waiting for at least 1 teammate…':'Everyone ready? Start the match!')+'</p>':'<p>Waiting for the host to start the match…</p>'}
- <button id="leaveTeam">LEAVE LOBBY</button>`;
+ card.innerHTML=`<main class="arenaTeam"><div class="arenaBrand">⚡ RIFT <span style="color:#ffe36c">RAIDERS</span></div><h1>🤝 YOUR SQUAD</h1><h2>🔑 ROOM CODE: <span style="color:#ffe477">${safeText(net.room)}</span></h2>
+ <p>Share your code and password with friends. Host selects the map. 2–4 players.</p>
+ <div class="arenaPills" style="justify-content:center"><div class="arenaPill">🗺️ ${safeText(MAPS[save.map]?.[0]||'NEON CITY')}</div><div class="arenaPill">👥 ${count}/4 PLAYERS</div></div>
+ <div class="waitingPlayers">${[...['👑 '+net.name,...peers.map(x=>'🤝 '+x.name)],...Array(Math.max(0,4-count)).fill('➕ OPEN SLOT')].map((x,i)=>'<div><span style="font-size:38px">'+(i<count?'🦸':'➕')+'</span><span>'+safeText(x)+'</span></div>').join('')}</div>
+ ${net.host?'<button id="startTeam" '+(count<2?'disabled':'')+'>▶ START TEAM MATCH</button><p>'+(count<2?'Waiting for a teammate to join…':'Squad ready! Start whenever you like.')+'</p>':'<p>⏳ Waiting for the host to start the match…</p>'}
+ <button id="leaveTeam">⬅ LEAVE SQUAD</button></main>`;
  if(net.host)$('startTeam').onclick=()=>netSend({t:'start'});
  $('leaveTeam').onclick=()=>{netDisconnect();mode='menu';renderShop()};
 }
