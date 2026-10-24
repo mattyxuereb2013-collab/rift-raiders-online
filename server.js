@@ -42,19 +42,21 @@ function hashPass(pass,salt){return crypto.scryptSync(pass,salt,32)}
 function equalPass(pass,room){try{return crypto.timingSafeEqual(hashPass(pass,room.salt),room.hash)}catch(e){return false}}
 function newCode(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';for(let n=0;n<30;n++){let code='';for(let i=0;i<6;i++)code+=chars[crypto.randomInt(chars.length)];if(!rooms.has(code))return code}throw Error('Cannot allocate lobby code')}
 function validatePassword(m){return typeof m.password==='string'&&m.password.length>=4&&m.password.length<=32}
-function welcome(c,room){c.room=room.code;room.players.add(c);send(c,{t:'welcome',id:c.id,host:room.host===c.id,map:room.map,room:room.code,players:[...room.players].filter(x=>x!==c).map(x=>({id:x.id,name:x.name}))});broadcast(room,{t:'join',id:c.id,name:c.name},c)}
+function welcome(c,room){c.room=room.code;room.players.add(c);send(c,{t:'welcome',id:c.id,host:room.host===c.id,map:room.map,room:room.code,...(room.host===c.id?{inviteToken:room.inviteToken}:{}),players:[...room.players].filter(x=>x!==c).map(x=>({id:x.id,name:x.name}))});broadcast(room,{t:'join',id:c.id,name:c.name},c)}
 function processMsg(c,m){if(!m||typeof m!=='object'||typeof m.t!=='string')return;
  if(m.t==='create'||m.t==='join'){
   if(c.room){send(c,{t:'error',message:'Already in a lobby.'});return}
-  if(!validatePassword(m)){send(c,{t:'error',message:'Password must have 4–32 characters.'});return}
+  if(m.t==='create'&&!validatePassword(m)){send(c,{t:'error',message:'Password must have 4–32 characters.'});return}
   c.name=cleanName(m.name);
   if(m.t==='create'){
-   let code=newCode(),salt=crypto.randomBytes(16),room={code,salt,hash:hashPass(m.password,salt),map:/^[a-z]{3,12}$/.test(String(m.map))?String(m.map):'neon',players:new Set(),host:c.id,started:false};
+   let code=newCode(),salt=crypto.randomBytes(16),room={code,salt,hash:hashPass(m.password,salt),inviteToken:crypto.randomBytes(24).toString('hex'),map:/^[a-z]{3,12}$/.test(String(m.map))?String(m.map):'neon',players:new Set(),host:c.id,started:false};
    rooms.set(code,room);welcome(c,room);return;
   }
   let code=String(m.room||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8),room=rooms.get(code);
   if(!room){send(c,{t:'error',message:'Lobby not found. Check the code.'});return}
-  if(!equalPass(m.password,room)){send(c,{t:'error',message:'Wrong lobby password.'});return}
+  let invited=typeof m.inviteToken==='string'&&m.inviteToken.length===48&&crypto.timingSafeEqual(Buffer.from(m.inviteToken),Buffer.from(room.inviteToken));
+  if(!invited&&!validatePassword(m)){send(c,{t:'error',message:'Enter a lobby password or use a friend invitation.'});return}
+  if(!invited&&!equalPass(m.password,room)){send(c,{t:'error',message:'Wrong lobby password.'});return}
   if(room.started){send(c,{t:'error',message:'Match already started. Ask the host to make a new lobby.'});return}
   if(room.players.size>=MAX_PLAYERS){send(c,{t:'error',message:'Lobby full (4 players maximum).'});return}
   welcome(c,room);return;
