@@ -114,6 +114,7 @@ function decodeFrames(c,chunk){
 
 // Seasonal battle pass: 30 levels; paid unlocks are granted ONLY after a verified Stripe webhook.
 const STRIPE_SECRET=process.env.STRIPE_SECRET_KEY||'';
+const passMatchCooldown=new Map();
 const STRIPE_WEBHOOK_SECRET=process.env.STRIPE_WEBHOOK_SECRET||'';
 async function passUser(req){let auth=String(req.headers.authorization||'');if(!auth.startsWith('Bearer '))throw Error('Sign in first');let token=auth.slice(7);let r=await fetch(publicDbUrl+'/auth/v1/user',{headers:{apikey:publicDbKey,Authorization:'Bearer '+token},signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error('Session expired; sign in again');let u=await r.json();if(!u.id)throw Error('Account not found');return u}
 async function passState(userId){let season=rankSeason();let rows=await dbCall('raider_battle_pass?select=xp,premium,free_claimed,premium_claimed&user_id=eq.'+encodeURIComponent(userId)+'&season=eq.'+season);return {season,xp:0,premium:false,free_claimed:[],premium_claimed:[],...(rows[0]||{}),price_eur:2,levels:30}}
@@ -138,11 +139,19 @@ const server=http.createServer((req,res)=>{
    }catch(e){console.error('Battle pass webhook:',e.message);jsonResponse(res,503,{error:'Payment activation will be retried'})}
   });return;
  }
- if(pathname.startsWith('/battlepass/')&&['/battlepass/status','/battlepass/claim','/battlepass/checkout'].includes(pathname)){
+ if(pathname.startsWith('/battlepass/')&&['/battlepass/status','/battlepass/claim','/battlepass/checkout','/battlepass/match'].includes(pathname)){
   (async()=>{try{
    if(!permanentScores)throw Error('Battle Pass database not configured on server');
    const user=await passUser(req),season=rankSeason();
    if(pathname==='/battlepass/status'&&req.method==='GET'){jsonResponse(res,200,await passState(user.id));return}
+   if(pathname==='/battlepass/match'&&req.method==='POST'){
+    let v=await readJson(req),wave=Math.max(1,Math.min(100,Math.floor(Number(v.wave)||1))),kills=Math.max(0,Math.min(1000,Math.floor(Number(v.kills)||0))),now=Date.now();
+    if(now-(passMatchCooldown.get(user.id)||0)<60000){jsonResponse(res,429,{error:'Battle Pass XP can only be earned once per minute'});return}
+    passMatchCooldown.set(user.id,now);
+    let earned=Math.min(100,Math.floor(15+wave*2+Math.sqrt(kills)*3));
+    let xp=await dbCall('rpc/raider_pass_add_xp',{method:'POST',body:JSON.stringify({p_user_id:user.id,p_season:season,p_xp:earned})});
+    jsonResponse(res,200,{xp,earned});return;
+   }
    if(pathname==='/battlepass/claim'&&req.method==='POST'){let v=await readJson(req),level=Number(v.level),premium=v.track==='premium';
     if(!Number.isInteger(level)||level<1||level>30||!['free','premium'].includes(v.track))throw Error('Invalid reward');
     let granted=await dbCall('rpc/raider_pass_claim',{method:'POST',body:JSON.stringify({p_user_id:user.id,p_season:season,p_level:level,p_premium:premium})});
