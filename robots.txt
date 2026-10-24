@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://rift-raiders-online.onrender.com/sitemap.xml
