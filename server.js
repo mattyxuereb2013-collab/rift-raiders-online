@@ -17,6 +17,8 @@ const rankSeason=()=>{let d=new Date();return d.getUTCFullYear()+'-Q'+(Math.floo
 let activeRankSeason=rankSeason();
 function checkRankSeason(){let current=rankSeason();if(activeRankSeason!==current){ranks.clear();activeRankSeason=current}}
 const withRank=row=>{checkRankSeason();return {...row,rankPoints:ranks.has(row.name.toLowerCase())?ranks.get(row.name.toLowerCase()):null}};
+async function cloudRankRows(rows){let season=rankSeason(),saved=await dbCall('raider_rank_seasons?select=player_key,rank_points&season=eq.'+encodeURIComponent(season)+'&limit=1000');let byName=new Map(saved.map(v=>[v.player_key,v.rank_points]));return rows.map(row=>({...row,rankPoints:byName.has(row.name.toLowerCase())?byName.get(row.name.toLowerCase()):null}))}
+async function cloudSaveRank(name,points,season){return dbCall('rpc/save_raider_rank',{method:'POST',body:JSON.stringify({p_name:name,p_season:season,p_rank_points:points})})}
 const cleanName=s=>String(s||'Raider').replace(/[<>\x00-\x1f]/g,'').slice(0,18)||'Raider';
 const dbUrl=(process.env.SUPABASE_URL||'').replace(/\/$/,'');
 const dbKey=process.env.SUPABASE_SERVICE_ROLE_KEY||'';
@@ -107,8 +109,51 @@ function decodeFrames(c,chunk){
 }
 const server=http.createServer((req,res)=>{
  let pathname;try{pathname=new URL(req.url,'http://localhost').pathname}catch(e){res.writeHead(400);res.end();return}
- if(pathname==='/leaderboard'&&req.method==='GET'){if(!permanentScores){jsonResponse(res,200,scores.slice(0,30).map(withRank));return}dbCall('raider_scores?select=name,wave,kills,mode&order=wave.desc,kills.desc&limit=30').then(rows=>jsonResponse(res,200,rows.map(withRank))).catch(e=>{console.error(e.message);jsonResponse(res,503,{error:'Leaderboard temporarily unavailable'})});return}
- if(pathname==='/score'&&req.method==='POST'){let body='',done=false;req.on('data',c=>{body+=c;if(body.length>2048){done=true;req.destroy()}});req.on('end',()=>{if(done)return;let name,wave,kills,mode,rankPoints,reportedSeason;try{let v=JSON.parse(body);reportedSeason=String(v.rankSeason||'');name=cleanName(v.name);wave=Math.max(1,Math.min(999,Math.floor(Number(v.wave)||1)));kills=Math.max(0,Math.min(999999,Math.floor(Number(v.kills)||0)));mode=v.mode==='online'?'online':'offline';rankPoints=v.rankPoints===undefined?null:Math.max(0,Math.min(100000,Math.floor(Number(v.rankPoints)||0)))}catch(e){jsonResponse(res,400,{error:'Invalid score'});return}checkRankSeason();if(rankPoints!==null&&reportedSeason===activeRankSeason)ranks.set(name.toLowerCase(),Math.max(rankPoints,ranks.get(name.toLowerCase())||0));if(permanentScores){dbCall('rpc/save_best_raider_score',{method:'POST',body:JSON.stringify({p_name:name,p_wave:wave,p_kills:kills,p_mode:mode})}).then(()=>jsonResponse(res,200,{ok:true})).catch(e=>{console.error(e.message);jsonResponse(res,503,{error:'Could not save score'})});return}const existing=scores.find(s=>s.name.toLowerCase()===name.toLowerCase());if(existing){if(wave>existing.wave||(wave===existing.wave&&kills>existing.kills))Object.assign(existing,{name,wave,kills,mode})}else scores.push({name,wave,kills,mode});scores.sort((a,b)=>b.wave-a.wave||b.kills-a.kills);scores.length=Math.min(scores.length,100);jsonResponse(res,200,{ok:true})});return}
+ if(pathname==='/leaderboard'&&req.method==='GET'){
+  checkRankSeason();
+  if(!permanentScores){jsonResponse(res,200,scores.slice(0,30).map(withRank));return}
+  dbCall('raider_scores?select=name,wave,kills,mode&order=wave.desc,kills.desc&limit=30')
+    .then(cloudRankRows).then(rows=>jsonResponse(res,200,rows))
+    .catch(e=>{console.error(e.message);jsonResponse(res,503,{error:'Leaderboard temporarily unavailable'})});return;
+ }
+ if(pathname==='/rank'&&req.method==='POST'){
+  let body='',done=false;req.on('data',c=>{body+=c;if(body.length>2048){done=true;req.destroy()}});
+  req.on('end',()=>{if(done)return;let name,points,season;try{
+    let v=JSON.parse(body);name=cleanName(v.name);points=Math.floor(Number(v.rankPoints));season=String(v.rankSeason||'');
+    if(!Number.isFinite(points)||points<0||points>100000||season!==rankSeason())throw Error('Invalid rank');
+   }catch(e){jsonResponse(res,400,{error:'Invalid rank progress'});return}
+   if(!permanentScores){jsonResponse(res,503,{error:'Permanent rank storage is not configured'});return}
+   cloudSaveRank(name,points,season).then(saved=>jsonResponse(res,200,{ok:true,rankPoints:saved,rankSeason:season}))
+    .catch(e=>{console.error(e.message);jsonResponse(res,503,{error:'Rank sync unavailable; your device copy remains saved'})});
+  });return;
+ }
+ if(pathname==='/score'&&req.method==='POST'){
+  let body='',done=false;req.on('data',c=>{body+=c;if(body.length>2048){done=true;req.destroy()}});
+  req.on('end',()=>{if(done)return;let name,wave,kills,mode,rankPoints,reportedSeason;
+   try{let v=JSON.parse(body);name=cleanName(v.name);wave=Math.max(1,Math.min(999,Math.floor(Number(v.wave)||1)));
+    kills=Math.max(0,Math.min(999999,Math.floor(Number(v.kills)||0)));mode=v.mode==='online'?'online':'offline';
+    rankPoints=v.rankPoints===undefined?null:Math.max(0,Math.min(100000,Math.floor(Number(v.rankPoints)||0)));
+    reportedSeason=String(v.rankSeason||'');
+   }catch(e){jsonResponse(res,400,{error:'Invalid score'});return}
+   checkRankSeason();
+   if(rankPoints!==null&&reportedSeason===activeRankSeason)ranks.set(name.toLowerCase(),Math.max(rankPoints,ranks.get(name.toLowerCase())||0));
+   if(permanentScores){
+    const saveScore=dbCall('rpc/save_best_raider_score',{method:'POST',body:JSON.stringify({p_name:name,p_wave:wave,p_kills:kills,p_mode:mode})});
+    const saveRank=rankPoints!==null&&reportedSeason===rankSeason()?cloudSaveRank(name,rankPoints,reportedSeason):Promise.resolve(null);
+    Promise.allSettled([saveScore,saveRank]).then(([scoreResult,rankResult])=>{
+     if(scoreResult.status==='rejected')console.error('Score persistence:',scoreResult.reason?.message);
+     if(rankResult.status==='rejected')console.error('Rank persistence:',rankResult.reason?.message);
+     jsonResponse(res,scoreResult.status==='fulfilled'&&rankResult.status==='fulfilled'?200:503,
+      {ok:scoreResult.status==='fulfilled',rankSaved:rankResult.status==='fulfilled'&&rankPoints!==null,rankPoints:rankResult.status==='fulfilled'?rankResult.value:null});
+    });return;
+   }
+   const existing=scores.find(s=>s.name.toLowerCase()===name.toLowerCase());
+   if(existing){if(wave>existing.wave||(wave===existing.wave&&kills>existing.kills))Object.assign(existing,{name,wave,kills,mode})}
+   else scores.push({name,wave,kills,mode});
+   scores.sort((a,b)=>b.wave-a.wave||b.kills-a.kills);scores.length=Math.min(scores.length,100);
+   jsonResponse(res,200,{ok:true,rankSaved:false});
+  });return;
+ }
  if(pathname==='/health'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,rooms:rooms.size,players:clients.size}));return}
  const staticFiles={'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json; charset=utf-8'],'/icon.svg':['icon.svg','image/svg+xml'],'/sw.js':['sw.js','application/javascript; charset=utf-8']};
  if(Object.hasOwn(staticFiles,pathname)){
