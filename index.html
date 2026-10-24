@@ -57,6 +57,7 @@ try{let old=JSON.parse(localStorage.getItem('rift_raiders_save')||localStorage.g
 function persist(){try{localStorage.setItem('rift_raiders_save',JSON.stringify(save))}catch(e){}}
 if(!Array.isArray(save.highScores))save.highScores=[];
 if(!save.petLevels||typeof save.petLevels!=='object')save.petLevels={};
+if(!save.pets||typeof save.pets!=='object')save.pets={none:1};
 for(const id of Object.keys(PETS)){if(id==='none')continue;save.pets[id]=Math.max(0,Math.floor(Number(save.pets[id])||0));save.petLevels[id]=Math.max(1,Math.min(10,Math.floor(Number(save.petLevels[id])||1)));}
 function petLevel(id){return id==='none'?1:(save.petLevels[id]||1)}
 function petMergeCost(id){return 150*petLevel(id)*petLevel(id)}
@@ -130,7 +131,7 @@ function netMessage(m){
  if(m.t==='start'&&net.active){begin();message('🤝 TEAM MATCH STARTED — '+net.room);return}
  if(m.t==='join'){net.peers[m.id]={id:m.id,name:m.name,x:0,y:0,hp:100};if(mode==='waiting')waitingRoom();else message('🤝 '+m.name+' joined!');return}
  if(m.t==='leave'){delete net.peers[m.id];if(mode==='waiting')waitingRoom();else message('A teammate left');return}
- if(m.t==='hostgone'){netDisconnect();mode='menu';menu.style.display='flex';card.innerHTML='<h1>HOST LEFT</h1><p>The team match ended because the host disconnected.</p><button id="backMain">MAIN MENU</button>';$('backMain').onclick=renderShop;return}
+ if(m.t==='hostgone'){upgradeOpen=false;menu.style.background='#050b15ec';card.style.maxWidth='1100px';netDisconnect();mode='menu';menu.style.display='flex';card.innerHTML='<h1>HOST LEFT</h1><p>The team match ended because the host disconnected.</p><button id="backMain">MAIN MENU</button>';$('backMain').onclick=renderShop;return}
  if(m.t==='state'){let old=net.peers[m.id]||{},next={...old,...m};if(Number.isFinite(m.x)&&Number.isFinite(m.y)){next.renderX=Number.isFinite(old.renderX)?old.renderX:m.x;next.renderY=Number.isFinite(old.renderY)?old.renderY:m.y;next.targetX=m.x;next.targetY=m.y}net.peers[m.id]=next;return}
  if(m.t==='world'&&net.active&&!net.host){time=Number(m.time)||time;wave=Number(m.wave)||wave;enemies=(m.enemies||[]).slice(0,100);bullets=(m.bullets||[]).slice(0,500);drops=(m.drops||[]).slice(0,280);chests=(m.chests||[]).slice(0,12);eventName=String(m.event||'');boss=enemies.find(e=>e.boss)||null;net.lastWorld=performance.now();return}
  if(m.t==='shot'&&net.active&&net.host){let other=net.peers[m.id];if(other&&GUNS[m.gun])fireAngle(m.angle,1,other,m.gun,m.upgrade);return}
@@ -141,7 +142,7 @@ function netMessage(m){
  if(m.t==='bonus'&&net.active){grantBonus(m.kind,m.amount);return}
 }
 function netTick(dt){if(!net.active)return;net.clock+=dt;net.snapshot+=dt;if(net.clock>=.09){net.clock=0;netSend({t:'state',x:p.x,y:p.y,angle:aim,hp:p.hp,skin:save.skin,gun:save.gun,pet:save.pet,skills:skillLevels})}
- if(net.host&&net.snapshot>=.11){net.snapshot=0;netSend({t:'world',time,wave,enemies:enemies.map(e=>({x:e.x,y:e.y,r:e.r,type:e.type,hp:e.hp,max:e.max,hit:e.hit,phase:e.phase,boss:e.boss,id:e.id})),bullets:bullets.map(b=>({x:b.x,y:b.y,r:b.r,color:b.color,owner:b.owner})),drops:drops.map(o=>({x:o.x,y:o.y,r:o.r,v:o.v})),chests:chests.map(c=>({x:c.x,y:c.y,r:c.r})),event:eventName&&time<eventUntil?eventName:''})}}
+ if(net.host&&net.snapshot>=.15){net.snapshot=0;netSend({t:'world',time,wave,enemies:enemies.slice(0,75).map(e=>({x:e.x,y:e.y,r:e.r,type:e.type,hp:e.hp,max:e.max,hit:e.hit,phase:e.phase,boss:e.boss,id:e.id})),bullets:bullets.slice(0,120).map(b=>({x:b.x,y:b.y,r:b.r,color:b.color,owner:b.owner})),drops:drops.slice(0,100).map(o=>({x:o.x,y:o.y,r:o.r,v:o.v})),chests:chests.slice(0,8).map(c=>({x:c.x,y:c.y,r:c.r})),event:eventName&&time<eventUntil?eventName:''})}}
 function gainXp(amount){xp+=amount;if(xp>=need&&mode==='play'&&!upgradeOpen){xp-=need;level++;need=level===2?34:level===3?60:level===4?120:Math.ceil(need*1.40+16);upgradeScreen()}}
 // Every XP orb collected in a team match rewards all teammates equally.
 function shareXp(amount){gainXp(amount);if(net.active&&net.host)for(let r of Object.values(net.peers))if(r&&r.id)netSend({t:'xp',to:r.id,xp:amount})}
@@ -327,6 +328,8 @@ function upgradeScreen(){
  if(!online)mode='upgrade';
  firing=false;
  menu.style.display='flex';
+ menu.style.background=online?'#050b15b0':'#050b15ec';
+ card.style.maxWidth=online?'520px':'1100px';
  let available=Object.keys(SKILLS).filter(k=>(skillLevels[k]||0)<5);
  if(!available.length){p.max+=10;p.hp=Math.min(p.max,p.hp+30);upgradeOpen=false;resume();return}
  available.sort(()=>Math.random()-.5);
@@ -344,10 +347,11 @@ function upgradeScreen(){
 }
 function resume(){
  mode='play';menu.style.display='none';
+ menu.style.background='#050b15ec';card.style.maxWidth='1100px';
  if(xp>=need){xp-=need;level++;need=level===2?34:level===3?60:level===4?120:Math.ceil(need*1.40+16);upgradeScreen();return}
  if(!net.active){last=performance.now();requestAnimationFrame(loop)}
 }
-function die(){upgradeOpen=false;let runMode=net.active?'online':'offline',scoreName=playerName()||net.name||'Raider';if(net.active)netDisconnect();mode='dead';firing=false;save.best=Math.max(save.best,kills);save.highScores=bestRuns([...save.highScores,{name:scoreName,wave,kills,mode:runMode}]).slice(0,10);persist();try{fetch('/score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:scoreName,wave,kills,mode:runMode})}).catch(()=>{})}catch(e){}menu.style.display='flex';card.innerHTML='<h1>RUN OVER</h1><h2>WAVE '+wave+' · '+kills+' KILLS</h2><p>🪙 '+save.coins+' total coins · Level '+level+'</p><button id="again">RETRY</button><button id="shopsAgain">SHOPS</button>';$('again').onclick=begin;$('shopsAgain').onclick=()=>{mode='menu';renderShop()}}
+function die(){upgradeOpen=false;menu.style.background='#050b15ec';card.style.maxWidth='1100px';let runMode=net.active?'online':'offline',scoreName=playerName()||net.name||'Raider';if(net.active)netDisconnect();mode='dead';firing=false;save.best=Math.max(save.best,kills);save.highScores=bestRuns([...save.highScores,{name:scoreName,wave,kills,mode:runMode}]).slice(0,10);persist();try{fetch('/score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:scoreName,wave,kills,mode:runMode})}).catch(()=>{})}catch(e){}menu.style.display='flex';card.innerHTML='<h1>RUN OVER</h1><h2>WAVE '+wave+' · '+kills+' KILLS</h2><p>🪙 '+save.coins+' total coins · Level '+level+'</p><button id="again">RETRY</button><button id="shopsAgain">SHOPS</button>';$('again').onclick=begin;$('shopsAgain').onclick=()=>{mode='menu';renderShop()}}
 function refreshHUD(){$('shopBtn').style.display=net.active&&mode==='play'?'none':'';let nukeLabel=$('nukeLabel');nukeLabel.style.display=skillLevels.nuke?'inline':'none';if(skillLevels.nuke){let cd=Math.max(0,skillTimers.nuke||0);nukeLabel.textContent=cd>0?'☢️ NUKE '+Math.ceil(cd)+'s':'☢️ NUKE READY'}$('hpfill').style.width=(100*p.hp/p.max)+'%';$('hptext').textContent=Math.ceil(100*p.hp/p.max)+'% HEALTH';$('wave').textContent='WAVE '+wave;$('level').textContent='LV '+level+' · '+xp+'/'+need+' XP'+(net.active?' · TEAM SHARED':'');$('money').textContent='🪙 '+save.coins;$('dashLabel').textContent=dashCD?'DASH '+Math.ceil(dashCD)+'s':'DASH READY';$('dash').textContent=dashCD?Math.ceil(dashCD)+'s':'DASH';$('bossHud').style.display=boss?'block':'none';if(boss){$('bossName').textContent=MAPS[save.map][7].toUpperCase()+' · '+Math.ceil(100*boss.hp/boss.max)+'%';$('bossFill').style.width=clamp(boss.hp/boss.max*100,0,100)+'%'}$('toast').style.opacity=time<toastUntil?'1':'0';$('onlineStatus').textContent=(net.active?'🌐 '+net.room+' · '+(Object.keys(net.peers).length+1)+'/4 RAIDERS':'')+(eventName?' · 🌋 '+eventName:'')+(downedUntil?' · ❤️ REVIVE '+Math.ceil(downedUntil-time)+'s':'')+(time<boostUntil?' · ⚡ BOOST':'');$('skillrow').textContent=Object.keys(skillLevels).map(k=>SKILLS[k][0]+' '+skillLevels[k]+'/5'+(skillLevels[k]===5?' ✨':'')).join('  ·  ')}
 function bossAbility(e,target){let kind=MAPS[save.map][7],a=Math.atan2(target.y-e.y,target.x-e.x);
  if(kind==='hydra'||kind==='mechlord'||kind==='colossus'){for(let i=0;i<3;i++)spawnEnemy(false);message('⚠️ BOSS SUMMONED REINFORCEMENTS')}
