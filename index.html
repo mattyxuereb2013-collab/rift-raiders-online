@@ -390,7 +390,7 @@ account={id:user.id,email:user.email,name:profile.display_name};if(playerName()!
 async function accountSignOut(){let token=await accountToken();if(token)authRequest('/auth/v1/logout',{method:'POST',headers:authHeaders(token)}).catch(()=>{});setAccountSession(null);account=null}
 async function syncRank(push=false){
  if(!accountSession)return {ok:false,reason:'Sign in to protect your rank'};
- if(rankSyncing)return rankSyncing;
+ if(rankSyncing){if(push){await rankSyncing;return syncRank(true)}return rankSyncing}
  rankSyncing=(async()=>{try{
   if(!account)await loadAccount();if(!account)return {ok:false};
   const key=playerName().toLowerCase(),season=rankSeason();
