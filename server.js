@@ -123,6 +123,15 @@ function processMsg(c,m){if(!m||typeof m!=='object'||typeof m.t!=='string')retur
   const host=[...room.players].find(x=>x.id===room.host);
   if(host&&Number.isFinite(m.angle))send(host,{t:'shot',id:c.id,angle:m.angle,gun:String(m.gun||'pistol').slice(0,20),upgrade:Math.max(0,Math.min(5,Number(m.upgrade)||0))});return;
  }
+ if(m.t==='fx'&&c.id===room.host){
+  if(!['rocket','meteor','nuke','lightning'].includes(m.kind))return;
+  if(!Number.isFinite(m.x)||!Number.isFinite(m.y))return;
+  const x=Math.max(0,Math.min(6000,m.x)),y=Math.max(0,Math.min(6000,m.y));
+  const radius=Math.max(0,Math.min(500,Number(m.radius)||80));
+  const tx=Number.isFinite(m.tx)?Math.max(0,Math.min(6000,m.tx)):x;
+  const ty=Number.isFinite(m.ty)?Math.max(0,Math.min(6000,m.ty)):y;
+  broadcast(room,{t:'fx',kind:m.kind,x,y,radius,tx,ty},c);return;
+ }
  if(m.t==='world'&&c.id===room.host){
   if(Array.isArray(m.enemies)&&m.enemies.length<=100&&Array.isArray(m.bullets)&&m.bullets.length<=500)broadcast(room,{t:'world',time:m.time,wave:m.wave,enemies:m.enemies,bullets:m.bullets,meteors:Array.isArray(m.meteors)?m.meteors.slice(0,15):[],drops:m.drops||[],turrets:m.turrets||[],chests:m.chests||[],event:m.event||''},c);return;
  }
