@@ -478,10 +478,10 @@ function waitingRoom(){
  card.innerHTML=`<main class="arenaTeam"><div class="arenaBrand">⚡ RIFT <span style="color:#ffe36c">RAIDERS</span></div><h1>🤝 YOUR SQUAD</h1><h2>🔑 ROOM CODE: <span style="color:#ffe477">${safeText(net.room)}</span></h2>
  <p>Share your code and password with friends. Host selects the map. 2–4 players.</p>
  <div class="arenaPills" style="justify-content:center"><div class="arenaPill">🗺️ ${safeText(MAPS[save.map]?.[0]||'NEON CITY')}</div><div class="arenaPill">👥 ${count}/4 PLAYERS</div></div>
- <div class="waitingPlayers">${[...['👑 '+net.name,...peers.map(x=>'🤝 '+x.name)],...Array(Math.max(0,4-count)).fill('➕ OPEN SLOT')].map((x,i)=>'<div><span style="font-size:38px">'+(i<count?'🦸':'➕')+'</span><span>'+safeText(x)+'</span></div>').join('')}</div>
+ <div class="waitingPlayers">${[...['👑 '+net.name,...peers.map(x=>'🤝 '+x.name)],...Array(Math.max(0,4-count)).fill('➕ OPEN SLOT')].map((x,i)=>'<div class="squadSlot">'+(i<count?'<span style="font-size:38px">🦸</span>':'<button class="squadPlus" aria-label="Invite friends to open slot" title="Invite friends">+</button>')+'<span>'+safeText(x)+'</span></div>').join('')}</div>
  ${net.host?'<button id="startTeam" '+(count<2?'disabled':'')+'>▶ START TEAM MATCH</button><p>'+(count<2?'Waiting for a teammate to join…':'Squad ready! Start whenever you like.')+'</p>':'<p>⏳ Waiting for the host to start the match…</p>'}
  <div id="waitingFriendInvites"></div><button id="leaveTeam">⬅ LEAVE SQUAD</button></main>`;
- if(net.host){$('startTeam').onclick=()=>netSend({t:'start'});showWaitingFriendInvites(net.room)}
+ if(net.host)$('startTeam').onclick=()=>netSend({t:'start'});card.querySelectorAll('.squadPlus').forEach(btn=>btn.onclick=()=>{if(net.host)showWaitingFriendInvites(net.room);else {const picker=$('waitingFriendInvites');if(picker)picker.innerHTML='<p>Only the room host can invite friends.</p>'}})
  $('leaveTeam').onclick=()=>{netDisconnect();mode='menu';renderShop()};
 }
 function netMessage(m){
@@ -684,7 +684,7 @@ async function joinFriendInvite(invite){
  openTeamSocket({url:defaultServer(),name:playerName(),action:'join',room:invite.room_code,password:'',inviteToken:invite.join_token});
 }
 async function friendsScreen(){
- const el=raiderPanel('🤝 FRIENDS');
+ const el=raiderPanel('🤝 FRIENDS');touchRaiderPresence();
  if(!accountSession){el.textContent='Sign in to search players, add friends and receive room invitations.';return}
  try{
   if(!account)await loadAccount();
@@ -699,9 +699,10 @@ async function friendsScreen(){
   const inviters=[...new Set(invites.map(v=>v.sender))];
   const inviteProfiles=inviters.length?await accountDb('raider_profiles?select=user_id,display_name&user_id=in.('+inviters.join(',')+')'):[];
   const inviteNames=new Map((inviteProfiles||[]).map(v=>[v.user_id,v.display_name]));
+  const presence=await friendPresenceMap([...accepted]);
   el.innerHTML='<h2>🔎 FIND PLAYERS</h2><p>Type part of a Raider name to see every matching account.</p><input id="friendSearch" placeholder="Search Raider names..." maxlength="18" autocomplete="off" style="width:min(420px,95%);padding:12px"><div id="friendSearchResults" style="max-height:220px;overflow:auto;margin:8px 0"></div>'+
    '<h2>🎮 ROOM INVITATIONS</h2><div id="friendRoomInvites">'+(invites.length?invites.map(v=>'<p>🎮 '+safeText(inviteNames.get(v.sender)||'Friend')+' invited you to a room <button data-joininvite="'+safeText(v.id)+'">JOIN ROOM</button></p>').join(''):'<p>No active room invitations. Ask a friend to invite you!</p>')+'</div>'+
-   '<h2>👥 YOUR FRIENDS</h2>'+(rows.filter(v=>v.status==='accepted').map(v=>'<p>🤝 '+safeText(names.get(v.requester===id?v.recipient:v.requester)||'Raider')+'</p>').join('')||'<p>No friends yet</p>')+
+   '<h2>👥 YOUR FRIENDS</h2>'+(rows.filter(v=>v.status==='accepted').map(v=>{const friendId=v.requester===id?v.recipient:v.requester;return '<p>🤝 '+safeText(names.get(friendId)||'Raider')+' <span class="'+(presence.get(friendId)?'friendOnline':'friendOffline')+'">'+(presence.get(friendId)?'● ONLINE':'○ OFFLINE')+'</span></p>'}).join('')||'<p>No friends yet</p>')+
    '<h2>📩 REQUESTS</h2>'+(rows.filter(v=>v.status==='pending'&&v.recipient===id).map(v=>'<p>'+safeText(names.get(v.requester)||'Raider')+' <button data-req="'+safeText(v.id)+'" data-yes="1">ACCEPT</button> <button data-req="'+safeText(v.id)+'" data-yes="0">DECLINE</button></p>').join('')||'<p>No requests</p>')+
    '<h2>📤 SENT</h2>'+(rows.filter(v=>v.status==='pending'&&v.requester===id).map(v=>'<p>⏳ '+safeText(names.get(v.recipient)||'Raider')+'</p>').join('')||'<p>No pending requests</p>')+'<p id="friendMsg" role="status"></p>';
   el.querySelectorAll('[data-joininvite]').forEach(b=>b.onclick=()=>{const invite=invites.find(v=>v.id===b.dataset.joininvite);if(invite)joinFriendInvite(invite)});
@@ -785,7 +786,7 @@ ${activeShop==='guns'?`<p>Equipped gun upgrade: <b>${gl}/5</b></p><button id="gu
 </details><p class="arenaFooterHelp">Move: WASD / joystick · Aim: mouse or drag · Shoot: hold click / FIRE · Dash: Space</p></main>`;
 }
 function renderShop(resumeRun=false,result=''){
-card.style.maxWidth='1100px';card.innerHTML=shopView();if(accountSession){const lobby=card.querySelector('.arenaLobby');if(lobby){lobby.insertAdjacentHTML('afterbegin','<div id="lobbyRoomInvites" style="display:none;background:#123b59;border:2px solid #62d4af;border-radius:12px;padding:7px;margin:4px 0"></div>');renderLobbyRoomInvites()}}$('accountBtn').onclick=accountScreen;$('profileBtn').onclick=()=>profilesScreen();$('questsBtn').onclick=questsScreen;$('friendsBtn').onclick=friendsScreen;$('achievementsBtn').onclick=achievementsScreen;$('battlePassBtn').onclick=battlePassScreen;if(accountSession)syncRank().then(v=>{let el=$('rankSyncStatus');if(el)el.textContent=v.ok?'☁️ Rank backed up to your account':'⚠️ '+(v.reason||'Sign in again to sync');let btn=$('accountBtn');if(btn&&account)btn.textContent='👤 MY ACCOUNT';});else{let el=$('rankSyncStatus');if(el)el.textContent='🔐 Create an account to protect your rank';}$('shareGame').onclick=()=>{prompt('Send this link to your friends:',location.origin)};$('changePlayerName').onclick=()=>{if(account){accountScreen();return}let name=prompt('Choose your leaderboard name (max 18 characters):',playerName());if(name!==null&&savePlayerName(name))renderShop(resumeRun)};let outcome=$('dailyResult');if(outcome&&result&&result.startsWith('🎰'))outcome.textContent=result;
+card.style.maxWidth='1100px';card.innerHTML=shopView();if(accountSession){touchRaiderPresence();checkScreenInvites()}if(accountSession){const lobby=card.querySelector('.arenaLobby');if(lobby){lobby.insertAdjacentHTML('afterbegin','<div id="lobbyRoomInvites" style="display:none;background:#123b59;border:2px solid #62d4af;border-radius:12px;padding:7px;margin:4px 0"></div>');renderLobbyRoomInvites()}}$('accountBtn').onclick=accountScreen;$('profileBtn').onclick=()=>profilesScreen();$('questsBtn').onclick=questsScreen;$('friendsBtn').onclick=friendsScreen;$('achievementsBtn').onclick=achievementsScreen;$('battlePassBtn').onclick=battlePassScreen;if(accountSession)syncRank().then(v=>{let el=$('rankSyncStatus');if(el)el.textContent=v.ok?'☁️ Rank backed up to your account':'⚠️ '+(v.reason||'Sign in again to sync');let btn=$('accountBtn');if(btn&&account)btn.textContent='👤 MY ACCOUNT';});else{let el=$('rankSyncStatus');if(el)el.textContent='🔐 Create an account to protect your rank';}$('shareGame').onclick=()=>{prompt('Send this link to your friends:',location.origin)};$('changePlayerName').onclick=()=>{if(account){accountScreen();return}let name=prompt('Choose your leaderboard name (max 18 characters):',playerName());if(name!==null&&savePlayerName(name))renderShop(resumeRun)};let outcome=$('dailyResult');if(outcome&&result&&result.startsWith('🎰'))outcome.textContent=result;
 let daily=$('dailySpin');if(daily)daily.onclick=()=>{
  const today=new Date().toISOString().slice(0,10);if(save.dailySpin===today)return;
  save.dailySpin=today;persist(); // Reserve today's spin before animating to prevent duplicate rewards.
