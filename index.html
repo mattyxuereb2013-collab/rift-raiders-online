@@ -998,7 +998,7 @@ function rocketVolley(owner,count,damage){
  let targets=[...enemies].filter(e=>distance(e,owner)<760).sort((a,b)=>distance(a,owner)-distance(b,owner));
  const n=Math.max(1,Math.min(5,count|0));
  for(let i=0;i<n;i++){
-  const target=targets[i%targets.length];
+  const target=targets.length?targets[i%targets.length]:null;
   const base=target?Math.atan2(target.y-owner.y,target.x-owner.x):(owner===p?aim:owner.angle||0);
   const angle=base+(i-(n-1)/2)*.18;
   launchRocket(owner.x,owner.y,angle,damage);
@@ -1010,7 +1010,7 @@ function meteorVolley(owner,level){
  let targets=[...enemies].filter(e=>distance(e,owner)<760).sort((a,b)=>distance(a,owner)-distance(b,owner));
  const n=Math.max(1,Math.min(5,level|0)),map=MAPS[save.map];
  for(let i=0;i<n;i++){
-  const target=targets[i%targets.length],a=(i/n)*Math.PI*2+time*.7;
+  const target=targets.length?targets[i%targets.length]:null,a=(i/n)*Math.PI*2+time*.7;
   const x=target?target.x+rnd(-30,30):owner.x+Math.cos(a)*185;
   const y=target?target.y+rnd(-30,30):owner.y+Math.sin(a)*185;
   meteors.push({x:clamp(x,65,map[2]-65),y:clamp(y,65,map[3]-65),radius:75+level*8,damage:20+level*12,age:0,delay:.85+i*.15});
