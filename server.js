@@ -203,7 +203,7 @@ const server=http.createServer((req,res)=>{
     reportedSeason=String(v.rankSeason||'');
    }catch(e){jsonResponse(res,400,{error:'Invalid score'});return}
    checkRankSeason();
-   if(rankPoints!==null&&reportedSeason===activeRankSeason)ranks.set(name.toLowerCase(),Math.max(rankPoints,ranks.get(name.toLowerCase())||0));
+   if(rankPoints!==null&&reportedSeason===activeRankSeason)ranks.set(name.toLowerCase(),rankPoints);
    if(permanentScores){
     const saveScore=dbCall('rpc/save_best_raider_score',{method:'POST',body:JSON.stringify({p_name:name,p_wave:wave,p_kills:kills,p_mode:mode})});
     const saveRank=rankPoints!==null&&reportedSeason===rankSeason()?cloudSaveRank(name,rankPoints,reportedSeason):Promise.resolve(null);
