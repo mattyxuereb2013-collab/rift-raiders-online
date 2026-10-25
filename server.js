@@ -37,9 +37,37 @@ function jsonResponse(res,status,value){res.writeHead(status,{'Content-Type':'ap
 function send(c,obj){if(!c||c.dead||c.socket.destroyed)return;try{let data=Buffer.from(JSON.stringify(obj));if(data.length>65535)return;let h=data.length<126?Buffer.from([0x81,data.length]):Buffer.from([0x81,126,data.length>>8,data.length&255]);c.socket.write(Buffer.concat([h,data]))}catch(e){closeClient(c)}}
 function broadcast(room,msg,except){for(let c of room.players)if(c!==except)send(c,msg)}
 function roomFor(c){return c.room?rooms.get(c.room):null}
+
+const CLUTCH_MS=30000;
+function clutchFail(room){
+ if(!room||!room.clutch)return;
+ room.clutch=null;room.clutchCooldown=Date.now()+12000;
+ broadcast(room,{t:'clutchFail'});
+}
+function clutchTick(room){
+ if(!room||!room.started||room.players.size<2)return;
+ const now=Date.now(),members=[...room.players],alive=members.filter(c=>Number(c.hp)>0);
+ if(room.clutch){
+  const active=room.clutch;
+  if(!members.some(c=>c.id===active.survivor)||!alive.some(c=>c.id===active.survivor)){clutchFail(room);return}
+  if(now>=active.endsAt){
+   room.clutch=null;room.clutchCooldown=now+12000;
+   for(const c of members){if(Number(c.hp)<=0){c.hp=50;send(c,{t:'clutchRevive'})}}
+   broadcast(room,{t:'clutchWin',survivor:active.survivor});
+  }
+  return;
+ }
+ if(now<(room.clutchCooldown||0))return;
+ if(alive.length===1&&members.some(c=>Number(c.hp)<=0)){
+  room.clutch={survivor:alive[0].id,endsAt:now+CLUTCH_MS};
+  broadcast(room,{t:'clutch',survivor:alive[0].id,name:alive[0].name,duration:CLUTCH_MS});
+ }
+}
+setInterval(()=>{for(const room of rooms.values())if(room.started)clutchTick(room)},150);
+
 function partyState(room){return {t:'party',map:room.map,players:[...room.players].map(p=>({id:p.id,name:p.name,ready:!!p.ready,host:p.id===room.host}))}}
 function broadcastParty(room){broadcast(room,partyState(room))}
-function closeClient(c){if(c.dead)return;c.dead=true;clients.delete(c);let room=roomFor(c);if(room){room.players.delete(c);if(room.host===c.id){for(let other of room.players){send(other,{t:'hostgone'});other.room=null}rooms.delete(room.code)}else{broadcast(room,{t:'leave',id:c.id});broadcastParty(room);if(!room.players.size)rooms.delete(room.code)}}c.room=null;try{c.socket.destroy()}catch(e){}}
+function closeClient(c){if(c.dead)return;c.dead=true;clients.delete(c);let room=roomFor(c);if(room){room.players.delete(c);if(room.clutch&&room.clutch.survivor===c.id)clutchFail(room);if(room.host===c.id){for(let other of room.players){send(other,{t:'hostgone'});other.room=null}rooms.delete(room.code)}else{broadcast(room,{t:'leave',id:c.id});broadcastParty(room);if(!room.players.size)rooms.delete(room.code)}}c.room=null;try{c.socket.destroy()}catch(e){}}
 function hashPass(pass,salt){return crypto.scryptSync(pass,salt,32)}
 function equalPass(pass,room){try{return crypto.timingSafeEqual(hashPass(pass,room.salt),room.hash)}catch(e){return false}}
 function newCode(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';for(let n=0;n<30;n++){let code='';for(let i=0;i<6;i++)code+=chars[crypto.randomInt(chars.length)];if(!rooms.has(code))return code}throw Error('Cannot allocate lobby code')}
@@ -51,7 +79,7 @@ function processMsg(c,m){if(!m||typeof m!=='object'||typeof m.t!=='string')retur
   if(m.t==='create'&&!validatePassword(m)){send(c,{t:'error',message:'Password must have 4–32 characters.'});return}
   c.name=cleanName(m.name);
   if(m.t==='create'){
-   let code=newCode(),salt=crypto.randomBytes(16),room={code,salt,hash:hashPass(m.password,salt),inviteToken:crypto.randomBytes(24).toString('hex'),map:/^[a-z]{3,12}$/.test(String(m.map))?String(m.map):'neon',players:new Set(),host:c.id,started:false};
+   let code=newCode(),salt=crypto.randomBytes(16),room={code,salt,hash:hashPass(m.password,salt),inviteToken:crypto.randomBytes(24).toString('hex'),clutch:null,clutchCooldown:0,map:/^[a-z]{3,12}$/.test(String(m.map))?String(m.map):'neon',players:new Set(),host:c.id,started:false};
    rooms.set(code,room);welcome(c,room);return;
   }
   let code=String(m.room||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8),room=rooms.get(code);
@@ -82,13 +110,13 @@ function processMsg(c,m){if(!m||typeof m!=='object'||typeof m.t!=='string')retur
   if(c.id!==room.host){send(c,{t:'error',message:'Only the host can start.'});return}
   if(room.players.size<2){send(c,{t:'error',message:'Wait for a teammate before starting.'});return}
   if([...room.players].some(p=>!p.ready)){send(c,{t:'error',message:'Every player must press READY first.'});return}
-  if(room.started)return;room.started=true;broadcast(room,{t:'start',map:room.map});return;
+  if(room.started)return;room.started=true;for(const player of room.players)player.hp=100;broadcast(room,{t:'start',map:room.map});return;
  }
  if(!room.started)return;
  if(m.t==='state'){
   if(!Number.isFinite(m.x)||!Number.isFinite(m.y))return;
-  let state={t:'state',id:c.id,name:c.name,x:Math.max(0,Math.min(6000,m.x)),y:Math.max(0,Math.min(6000,m.y)),angle:Number(m.angle)||0,hp:Number(m.hp)||0,skin:String(m.skin||'standard').slice(0,20),gun:String(m.gun||'pistol').slice(0,20),pet:String(m.pet||'none').slice(0,20),skills:m.skills&&typeof m.skills==='object'?m.skills:{}};
-  broadcast(room,state,c);return;
+  let state={t:'state',id:c.id,name:c.name,x:Math.max(0,Math.min(6000,m.x)),y:Math.max(0,Math.min(6000,m.y)),angle:Number(m.angle)||0,hp:Math.max(0,Math.min(10000,Number(m.hp)||0)),skin:String(m.skin||'standard').slice(0,20),gun:String(m.gun||'pistol').slice(0,20),pet:String(m.pet||'none').slice(0,20),skills:m.skills&&typeof m.skills==='object'?m.skills:{}};
+  c.hp=state.hp;broadcast(room,state,c);return;
  }
  if(m.t==='shot'){
   if(c.id===room.host)return;
