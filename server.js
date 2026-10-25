@@ -77,7 +77,7 @@ function clutchTick(room){
 }
 setInterval(()=>{for(const room of rooms.values())if(room.started)clutchTick(room)},150);
 
-function partyState(room){return {t:'party',map:room.map,players:[...room.players].map(p=>({id:p.id,name:p.name,ready:!!p.ready,host:p.id===room.host}))}}
+function partyState(room){return {t:'party',map:room.map,players:[...room.players].map(p=>({id:p.id,name:p.name,ready:!!p.ready,host:p.id===room.host,skin:p.skin||'standard',pet:p.pet||'none'}))}}
 function broadcastParty(room){broadcast(room,partyState(room))}
 function closeClient(c){if(c.dead)return;c.dead=true;clients.delete(c);let room=roomFor(c);if(room){room.players.delete(c);if(room.clutch&&(room.clutch.survivor===c.id||room.players.size<2))clutchFail(room);if(room.host===c.id){for(let other of room.players){send(other,{t:'hostgone'});other.room=null}rooms.delete(room.code)}else{broadcast(room,{t:'leave',id:c.id});broadcastParty(room);if(!room.players.size)rooms.delete(room.code)}}c.room=null;try{c.socket.destroy()}catch(e){}}
 function hashPass(pass,salt){return crypto.scryptSync(pass,salt,32)}
@@ -104,6 +104,17 @@ function processMsg(c,m){if(!m||typeof m!=='object'||typeof m.t!=='string')retur
   welcome(c,room);return;
  }
  const room=roomFor(c);if(!room||!room.players.has(c))return;
+ if(m.t==='loadout'){
+  if(room.started)return;
+  const skins=['standard','rookie','spider','shadow','gold','cyber','galaxy','phantom','celestial'];
+  const pets=['none','dog','cat','fox','owl','wolf','dragon','phoenix','griffin','bee','turtle','bat','robot','unicorn','golem','rocketpet'];
+  c.skin=skins.includes(m.skin)?m.skin:'standard';c.pet=pets.includes(m.pet)?m.pet:'none';
+  c.ready=false;broadcastParty(room);return;
+ }
+ if(m.t==='emote'){
+  if(room.started||!['dance','wave','flex'].includes(m.emote)||Date.now()-(c.lastEmote||0)<3000)return;
+  c.lastEmote=Date.now();broadcast(room,{t:'emote',id:c.id,emote:m.emote});return;
+ }
  if(m.t==='ready'){
   if(room.started)return;
   c.ready=!!m.ready;
