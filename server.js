@@ -218,6 +218,8 @@ const server=http.createServer((req,res)=>{
    }catch(e){console.error('Battle pass webhook:',e.message);jsonResponse(res,503,{error:'Payment activation will be retried'})}
   });return;
  }
+ // Premium sales retired; stale clients cannot start a new checkout.
+ if(pathname==='/battlepass/checkout'){jsonResponse(res,410,{error:'The premium pass has been removed. The free battle pass is available in game.'});return}
  if(pathname.startsWith('/battlepass/')&&['/battlepass/status','/battlepass/claim','/battlepass/checkout','/battlepass/match'].includes(pathname)){
   (async()=>{try{
    if(!permanentScores)throw Error('Battle Pass database not configured on server');
