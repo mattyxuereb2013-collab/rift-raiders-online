@@ -124,7 +124,7 @@ function processMsg(c,m){if(!m||typeof m!=='object'||typeof m.t!=='string')retur
   if(host&&Number.isFinite(m.angle))send(host,{t:'shot',id:c.id,angle:m.angle,gun:String(m.gun||'pistol').slice(0,20),upgrade:Math.max(0,Math.min(5,Number(m.upgrade)||0))});return;
  }
  if(m.t==='world'&&c.id===room.host){
-  if(Array.isArray(m.enemies)&&m.enemies.length<=100&&Array.isArray(m.bullets)&&m.bullets.length<=500)broadcast(room,{t:'world',time:m.time,wave:m.wave,enemies:m.enemies,bullets:m.bullets,drops:m.drops||[],turrets:m.turrets||[],chests:m.chests||[],event:m.event||''},c);return;
+  if(Array.isArray(m.enemies)&&m.enemies.length<=100&&Array.isArray(m.bullets)&&m.bullets.length<=500)broadcast(room,{t:'world',time:m.time,wave:m.wave,enemies:m.enemies,bullets:m.bullets,meteors:Array.isArray(m.meteors)?m.meteors.slice(0,15):[],drops:m.drops||[],turrets:m.turrets||[],chests:m.chests||[],event:m.event||''},c);return;
  }
  if(m.t==='reward'&&c.id===room.host){let coins=Math.max(0,Math.min(50,Math.floor(m.coins)||0));if(coins)broadcast(room,{t:'reward',coins},c);return}
  if((m.t==='hurt'||m.t==='xp'||m.t==='revive'||m.t==='bonus')&&c.id===room.host){let dest=[...room.players].find(x=>x.id===m.to);if(dest){if(m.t==='hurt')send(dest,{t:'hurt',damage:Math.max(0,Math.min(60,Number(m.damage)||0))});else if(m.t==='xp')send(dest,{t:'xp',xp:Math.max(0,Math.min(100,Math.floor(m.xp)||0))});else if(m.t==='revive')send(dest,{t:'revive'});else send(dest,{t:'bonus',kind:['coins','heal','boost'].includes(m.kind)?m.kind:'heal',amount:Math.max(0,Math.min(200,Number(m.amount)||0))})}return}
