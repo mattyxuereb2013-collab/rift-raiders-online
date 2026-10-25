@@ -517,7 +517,7 @@ function netMessage(m){
  if(m.t==='error'){let info=$('connectionInfo');if(info)info.textContent=m.message||'Could not join lobby.';let b=$('connectTeam');if(b)b.disabled=false;return}
  if(m.t==='welcome'){
  net.active=true;net.host=!!m.host;net.id=m.id;net.room=m.room;net.peers={};for(let x of m.players||[])net.peers[x.id]={id:x.id,name:x.name,x:0,y:0,hp:100};
- net.inviteToken=typeof m.inviteToken==='string'?m.inviteToken:'';net.ready=false;net.partyMap=MAPS[m.map]?m.map:save.map;net.partyPlayers=[{id:net.id,name:net.name,ready:false,host:net.host},...(m.players||[]).map(p=>({id:p.id,name:p.name,ready:!!p.ready,host:!net.host&&false}))];if(MAPS[m.map])save.map=m.map;waitingRoom();return;
+ net.inviteToken=typeof m.inviteToken==='string'?m.inviteToken:'';net.ready=false;net.partyMap=MAPS[m.map]?m.map:save.map;net.partyPlayers=[{id:net.id,name:net.name,ready:false,host:net.host},...(m.players||[]).map(p=>({id:p.id,name:p.name,ready:!!p.ready,host:!net.host}))];if(MAPS[m.map])save.map=m.map;waitingRoom();return;
  }
  if(m.t==='party'&&net.active){net.partyPlayers=Array.isArray(m.players)?m.players.slice(0,4):[];if(MAPS[m.map]){net.partyMap=m.map;save.map=m.map}const self=net.partyPlayers.find(p=>p.id===net.id);if(self)net.ready=!!self.ready;net.peers=Object.fromEntries(net.partyPlayers.filter(p=>p.id!==net.id).map(p=>[p.id,{...net.peers[p.id],id:p.id,name:p.name,ready:!!p.ready}]));if(mode==='waiting')waitingRoom();return}
  if(m.t==='start'&&net.active){if(MAPS[m.map])save.map=m.map;begin();message('🤝 TEAM MATCH STARTED — '+net.room);return}
