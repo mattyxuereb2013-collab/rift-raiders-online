@@ -363,6 +363,31 @@ body.device-laptop .mobileHint{display:none}
 @keyframes weaponFloat{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-9px) rotate(2deg)}}
 @media(max-width:650px){body.device-phone .arenaGlow{height:100px}body.device-phone .arenaWeapon{transform-origin:center;scale:.52;height:150px;animation:none}body.device-phone .arenaLoadoutBadge{font-size:9px;padding:3px 7px;margin-bottom:3px}}
 @media(orientation:landscape) and (max-height:600px){body.device-phone .arenaGlow{height:92px}body.device-phone .arenaWeapon{scale:.47;height:140px}body.device-phone .arenaLoadoutBadge{font-size:9px;padding:2px 7px;margin:0}}
+
+/* Compact post-match rank wheel on phones, portrait AND landscape. */
+@media(max-width:850px) and (pointer:coarse){
+ body.device-phone #card:has(#rankReveal){max-height:100dvh;overflow-y:auto;padding:6px!important}
+ body.device-phone #rankReveal{padding:3px 6px!important;max-width:100%}
+ body.device-phone #rankReveal .rankWheel{width:min(124px,27dvh,32vw)!important;max-width:124px!important;margin:5px auto!important;box-shadow:0 0 13px #ffcc6844,0 0 0 3px #4d67b8}
+ body.device-phone #rankReveal .rankWheel:before{inset:9px!important;border-width:2px}
+ body.device-phone #rankReveal .rankEmblem{font-size:30px!important}
+ body.device-phone #rankReveal .rankTier{font-size:11px!important}
+ body.device-phone #rankReveal .rankCount{font-size:9px!important}
+ body.device-phone #rankReveal .rankEarned{font-size:17px!important}
+ body.device-phone #rankReveal .rankHeadline{font-size:clamp(17px,3.5vw,23px)!important}
+ body.device-phone #rankReveal p{font-size:11px;margin:5px 0!important}
+ body.device-phone #rankReveal .rankButtons{margin:6px 0!important;gap:5px}
+ body.device-phone #rankReveal .rankButtons button{min-height:33px!important;padding:5px 9px!important;font-size:11px!important}
+}
+@media(orientation:landscape) and (max-height:600px){
+ body.device-phone #rankReveal .rankWheel{width:min(82px,22dvh)!important;max-width:82px!important;margin:2px auto!important}
+ body.device-phone #rankReveal .rankEmblem{font-size:20px!important}
+ body.device-phone #rankReveal .rankTier{font-size:9px!important}
+ body.device-phone #rankReveal .rankCount{font-size:8px!important}
+ body.device-phone #rankReveal .rankEarned{font-size:14px!important}
+ body.device-phone #rankReveal p{margin:2px 0!important;font-size:9px}
+ body.device-phone #rankReveal .rankButtons{margin:3px 0!important}
+}
 </style></head><body>
 <canvas id="game"></canvas><div id="hud"><div id="hpbox"><div id="hpbar"><div id="hpfill"></div></div><div id="hptext">100% HEALTH</div></div><span id="wave">WAVE 1</span><span id="level">LV 1</span><span id="money">🪙 0</span><span id="dashLabel">DASH READY</span><span id="nukeLabel" style="display:none;color:#ffe38b">☢️ NUKE READY</span></div><div id="bossHud"><span id="bossName"></span><div id="bossBar"><div id="bossFill"></div></div></div><div id="toast"></div><div id="onlineStatus"></div><button id="musicBtn">♫ MUSIC ON</button><button id="shopBtn">SHOP</button><div id="skillrow"></div><div id="touch"><div id="stick"><div id="nub"></div></div><div id="actions"><button id="fire">FIRE</button><button id="dash">DASH</button></div></div><div id="menu"><div id="card"></div></div><div id="wheelOverlay" role="dialog" aria-modal="true" aria-label="Daily spin prize wheel"><div id="wheelPanel"><h2>🎰 DAILY PRIZE WHEEL</h2><p>Watch the wheel spin to reveal your reward!</p><div id="wheelStage"><div id="wheelPointer">▼</div><div id="wheelDisk"><span style="transform:translate(-50%,-50%) rotate(0deg) translateY(-112px) rotate(0deg)">🪙</span><span style="transform:translate(-50%,-50%) rotate(45deg) translateY(-112px) rotate(-45deg)">💰</span><span style="transform:translate(-50%,-50%) rotate(90deg) translateY(-112px) rotate(-90deg)">🐾</span><span style="transform:translate(-50%,-50%) rotate(135deg) translateY(-112px) rotate(-135deg)">🪙</span><span style="transform:translate(-50%,-50%) rotate(180deg) translateY(-112px) rotate(-180deg)">💎</span><span style="transform:translate(-50%,-50%) rotate(225deg) translateY(-112px) rotate(-225deg)">🪙</span><span style="transform:translate(-50%,-50%) rotate(270deg) translateY(-112px) rotate(-270deg)">🎭</span><span style="transform:translate(-50%,-50%) rotate(315deg) translateY(-112px) rotate(-315deg)">💰</span></div></div><p id="wheelResult" aria-live="polite">🎡 SPINNING...</p><button id="wheelClose" disabled>WAIT FOR YOUR PRIZE...</button></div></div><div id="rollWheelOverlay" role="dialog" aria-modal="true" aria-label="Pet and skin prize wheel"><div id="rollWheelPanel"><h2 id="rollWheelTitle">🎡 PRIZE WHEEL</h2><p id="rollWheelHint">Watch the wheel spin!</p><div id="rollWheelStage"><div id="rollWheelPointer">▼</div><div id="rollWheelDisk"></div></div><p id="rollWheelResult" aria-live="polite">SPINNING...</p><button id="rollWheelClose" disabled>WAIT FOR PRIZE...</button></div></div><div id="deviceChoice" role="dialog" aria-modal="true" aria-label="Choose your device"><div class="devicePanel"><h2>🎮 HOW ARE YOU PLAYING?</h2><p>Choose your device to get the best RIFT RAIDERS experience.</p><div class="deviceChoices"><button id="choosePhone">📱<br>PHONE</button><button id="chooseLaptop">💻<br>LAPTOP</button></div><p>Phone mode gives you a wider arena view and compact menus. Version: PHONE WIDE VIEW.</p></div></div><div id="error"></div>
 <script>
@@ -625,7 +650,7 @@ function netMessage(m){
  if(m.t==='bonus'&&net.active){grantBonus(m.kind,m.amount);return}
 }
 function netTick(dt){if(!net.active)return;net.clock+=dt;net.snapshot+=dt;if(net.clock>=.09){net.clock=0;netSend({t:'state',x:p.x,y:p.y,angle:aim,hp:p.hp,skin:save.skin,gun:save.gun,pet:save.pet,skills:skillLevels})}
- if(net.host&&net.snapshot>=.15){net.snapshot=0;netSend({t:'world',time,wave,enemies:enemies.slice(0,75).map(e=>({x:e.x,y:e.y,r:e.r,type:e.type,hp:e.hp,max:e.max,hit:e.hit,phase:e.phase,boss:e.boss,id:e.id,frozenVisual:!!e.frozenVisual})),bullets:bullets.slice(0,120).map(b=>({x:b.x,y:b.y,r:b.r,color:b.color,owner:b.owner,vx:b.vx,vy:b.vy,boomerang:!!b.boomerang,blast:b.blast||0,age:b.age||0,life:b.life||0})),meteors:meteors.slice(0,15).map(m=>({x:m.x,y:m.y,radius:m.radius,age:m.age,delay:m.delay})),drops:drops.slice(0,100).map(o=>({x:o.x,y:o.y,r:o.r,v:o.v})),chests:chests.slice(0,8).map(c=>({x:c.x,y:c.y,r:c.r})),event:eventName&&time<eventUntil?eventName:''})}}
+ if(net.host&&net.snapshot>=.15){net.snapshot=0;netSend({t:'world',time,wave,enemies:enemies.slice(0,75).map(e=>({x:e.x,y:e.y,r:e.r,type:e.type,hp:e.hp,max:e.max,hit:e.hit,phase:e.phase,boss:e.boss,id:e.id,frozenVisual:!!e.frozenVisual})),bullets:bullets.slice(0,120).map(b=>({x:b.x,y:b.y,r:b.r,color:b.color,owner:b.owner,vx:b.vx,vy:b.vy,boomerang:!!b.boomerang,blast:b.blast||0,age:b.age||0,life:b.life||0,originX:b.originX,originY:b.originY})),meteors:meteors.slice(0,15).map(m=>({x:m.x,y:m.y,radius:m.radius,age:m.age,delay:m.delay})),drops:drops.slice(0,100).map(o=>({x:o.x,y:o.y,r:o.r,v:o.v})),chests:chests.slice(0,8).map(c=>({x:c.x,y:c.y,r:c.r})),event:eventName&&time<eventUntil?eventName:''})}}
 function gainXp(amount){xp+=amount;if(xp>=need&&mode==='play'&&!upgradeOpen){xp-=need;level++;need=level===2?34:level===3?60:level===4?120:Math.ceil(need*1.40+16);upgradeScreen()}}
 // Every XP orb collected in a team match rewards all teammates equally.
 function shareXp(amount){gainXp(amount);if(net.active&&net.host)for(let r of Object.values(net.peers))if(r&&r.id)netSend({t:'xp',to:r.id,xp:amount})}
@@ -1055,7 +1080,7 @@ function upgradeScreen(){
  const serial=++upgradeSerial;
  upgradeOpen=true;
  if(!online)mode='upgrade';
- firing=false;
+ if(!online)firing=false;
  menu.style.display='flex';
  menu.classList.toggle('onlineUpgrade',online);
  menu.style.background=online?'transparent':'#050b15ec';
@@ -1145,7 +1170,7 @@ if(net.active&&net.host){for(let r of Object.values(net.peers)){if(!r)continue;i
  if(sk.lightning){r.lightningTimer=(r.lightningTimer||0)-dt;if(r.lightningTimer<=0){let near=[...enemies].sort((a,b)=>distance(a,r)-distance(b,r)).filter(e=>distance(e,r)<430).slice(0,Math.min(7,2+sk.lightning));for(let e of near){boltEffect(r.x,r.y,e.x,e.y,'#b9e7ff');netSend({t:'fx',kind:'lightning',x:r.x,y:r.y,tx:e.x,ty:e.y});damageEnemy(e,(14+sk.lightning*9)*(sk.lightning===5?1.5:1))}r.lightningTimer=Math.max(.45,2.3-sk.lightning*.27)}}
  if(sk.blackhole)for(let e of enemies){let d=distance(e,r);if(d<150+sk.blackhole*55&&d>45){e.x+=(r.x-e.x)/d*(30+sk.blackhole*22)*dt;e.y+=(r.y-e.y)/d*(30+sk.blackhole*22)*dt}}
  if(sk.orb)for(let e of [...enemies])if(distance(e,r)<range)damageEnemy(e,(3+Math.min(5,sk.orb)*2)*dt);
- if(sk.cutter)for(let e of [...enemies])if(Math.abs(distance(e,r)-95)<e.r+16)damageEnemy(e,(10+Math.min(5,sk.cutter)*5)*dt);
+ if(sk.cutter)for(let e of [...enemies]){let n=2+Math.min(5,sk.cutter);for(let j=0;j<n;j++){let a=time*2.5+j*Math.PI*2/n,x=r.x+Math.cos(a)*95,y=r.y+Math.sin(a)*95;if(Math.hypot(e.x-x,e.y-y)<e.r+12)damageEnemy(e,(10+Math.min(5,sk.cutter)*5)*dt)}}
  if(sk.drones){r.droneTimer=(r.droneTimer||0)-dt;if(r.droneTimer<=0){let e=closest(r.x,r.y,430);if(e){let a=Math.atan2(e.y-r.y,e.x-r.x);bullets.push({x:r.x+Math.cos(time*1.1)*62,y:r.y+Math.sin(time*1.1)*62,vx:Math.cos(a)*680,vy:Math.sin(a)*680,r:5,life:.7,dmg:(8+Math.min(5,sk.drones)*6)*(sk.drones>=5?2:1),color:'#b3eaff',owner:'drone'})}r.droneTimer=Math.max(.3,1.5-Math.min(5,sk.drones)*.16)}}
 
  if(sk.meteor){r.meteorTimer=(r.meteorTimer||0)-dt;if(r.meteorTimer<=0){meteorVolley(r,Math.min(5,sk.meteor));r.meteorTimer=7}}
@@ -1215,13 +1240,13 @@ function drawRiftRocket(b){
  ctx.restore();
 }
 function drawRiftBoomerang(b){
- ctx.save();ctx.translate(b.x,b.y);ctx.rotate(time*18+(b.age||0)*12);
- ctx.lineJoin='round';ctx.lineCap='round';ctx.shadowColor='#45ffe1';ctx.shadowBlur=21;
- ctx.strokeStyle='#176f81';ctx.lineWidth=15;ctx.beginPath();ctx.moveTo(-23,-16);ctx.quadraticCurveTo(0,16,23,-16);ctx.stroke();
- ctx.strokeStyle='#aaffee';ctx.lineWidth=9;ctx.beginPath();ctx.moveTo(-23,-16);ctx.quadraticCurveTo(0,16,23,-16);ctx.stroke();
- ctx.strokeStyle='#f6fffe';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-23,-16);ctx.quadraticCurveTo(0,8,23,-16);ctx.stroke();
- ctx.fillStyle='#ffe38d';ctx.beginPath();ctx.arc(0,5,4,0,7);ctx.fill();
- ctx.restore();
+ ctx.save();ctx.translate(b.x,b.y);ctx.rotate(time*16+(b.age||0)*12);
+ ctx.lineJoin='round';ctx.lineCap='round';ctx.shadowColor='#45ffe1';ctx.shadowBlur=17;
+ // A solid two-wing V-shaped returning blade, not a circular projectile.
+ ctx.fillStyle='#176f81';ctx.beginPath();ctx.moveTo(-27,-20);ctx.lineTo(-13,-23);ctx.lineTo(0,-5);ctx.lineTo(13,-23);ctx.lineTo(27,-20);ctx.lineTo(5,13);ctx.quadraticCurveTo(0,19,-5,13);ctx.closePath();ctx.fill();
+ ctx.strokeStyle='#b6fff3';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-25,-20);ctx.lineTo(0,10);ctx.lineTo(25,-20);ctx.stroke();
+ ctx.strokeStyle='#f6fffe';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-21,-21);ctx.lineTo(0,4);ctx.lineTo(21,-21);ctx.stroke();
+ ctx.fillStyle='#ffe38d';ctx.beginPath();ctx.arc(0,10,4,0,7);ctx.fill();ctx.restore();
 }
 function drawRiftMeteor(m){
  const progress=Math.max(0,Math.min(1,(m.age||0)/Math.max(.1,m.delay||.85)));
@@ -1255,6 +1280,12 @@ for(let b of bullets){
 }
 for(let m of meteors)drawRiftMeteor(m);
 ctx.shadowBlur=0;
+
+// Active upgrade visuals: actual moving blades, ice field, shield and damage orb.
+if(skillLevels.orb){ctx.save();ctx.strokeStyle='#c8a0ff';ctx.shadowColor='#a56aff';ctx.shadowBlur=13;ctx.lineWidth=3;ctx.globalAlpha=.6;ctx.beginPath();ctx.arc(p.x,p.y,75+skillLevels.orb*22,0,Math.PI*2);ctx.stroke();ctx.restore()}
+if(skillLevels.freeze){ctx.save();ctx.strokeStyle='#9ceaff';ctx.shadowColor='#7bdeff';ctx.shadowBlur=8;ctx.lineWidth=2;ctx.setLineDash([9,15]);ctx.beginPath();ctx.arc(p.x,p.y,145+skillLevels.freeze*28,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.restore()}
+if(skillLevels.shield){ctx.save();ctx.strokeStyle='#68d8ff';ctx.shadowColor='#68d8ff';ctx.shadowBlur=10;ctx.lineWidth=2+skillLevels.shield*.5;ctx.globalAlpha=.55+.2*Math.sin(time*3);ctx.beginPath();ctx.arc(p.x,p.y,p.r+16,0,Math.PI*2);ctx.stroke();ctx.restore()}
+if(skillLevels.cutter){ctx.save();ctx.shadowColor='#a9f6ff';ctx.shadowBlur=10;for(let j=0,n=2+skillLevels.cutter;j<n;j++){let a=time*2.5+j*Math.PI*2/n,x=p.x+Math.cos(a)*95,y=p.y+Math.sin(a)*95;ctx.save();ctx.translate(x,y);ctx.rotate(-time*8);ctx.fillStyle='#e5f9ff';ctx.beginPath();for(let k=0;k<8;k++){let ang=k*Math.PI/4,r=k%2?7:15;if(!k)ctx.moveTo(Math.cos(ang)*r,Math.sin(ang)*r);else ctx.lineTo(Math.cos(ang)*r,Math.sin(ang)*r)}ctx.closePath();ctx.fill();ctx.fillStyle='#2b9bd3';ctx.beginPath();ctx.arc(0,0,4,0,7);ctx.fill();ctx.restore()}ctx.restore()}
 for(let e of enemies){let color=e.boss?m[6]:e.type==='tank'?'#ae84e9':e.type==='runner'?'#ffc078':e.type==='ice'?'#a8edff':e.type==='toxic'?'#9bef8a':e.type==='flame'?'#ff835d':e.type==='shade'||e.type==='wraith'?'#d59bff':e.type==='drone'||e.type==='laserbot'?'#79caff':e.type==='scorpion'||e.type==='burrower'?'#e7ae5e':e.type==='spore'?'#c5e76e':e.type==='golem'?'#b0ba7c':e.type==='magma'?'#ff684f':e.type==='angler'?'#74f2dc':e.type==='blizzard'?'#b3f2ff':'#ef708c';ctx.save();ctx.translate(e.x,e.y);ctx.rotate(e.phase*.3);ctx.shadowColor=color;ctx.shadowBlur=e.boss?12:0;ctx.fillStyle=e.hit?'#fff':color;if(e.boss)bossArt(e,color);else{polygon(0,0,e.r,e.r>24?7:5);ctx.fill();ctx.fillStyle='#17202d';ctx.beginPath();ctx.arc(0,0,Math.max(4,e.r*.25),0,7);ctx.fill()}ctx.restore();if(e.frozenVisual){ctx.save();ctx.strokeStyle='#a5f3ff';ctx.shadowColor='#78e8ff';ctx.shadowBlur=9;ctx.lineWidth=3;ctx.globalAlpha=.7+.2*Math.sin(time*9);ctx.beginPath();ctx.arc(e.x,e.y,e.r+6,0,Math.PI*2);ctx.stroke();for(let j=0;j<3;j++){let a=time*.7+j*Math.PI*2/3;ctx.fillStyle='#d7faff';ctx.fillRect(e.x+Math.cos(a)*(e.r+9)-2,e.y+Math.sin(a)*(e.r+9)-2,4,4)}ctx.restore()}if(e.r>24){ctx.fillStyle='#201f2b';ctx.fillRect(e.x-e.r,e.y-e.r-16,e.r*2,5);ctx.fillStyle='#ff7b8c';ctx.fillRect(e.x-e.r,e.y-e.r-16,e.r*2*Math.max(0,e.hp/e.max),5)}}
 if(eventName==='METEOR SHOWER'){ctx.globalAlpha=.16;ctx.fillStyle='#ff744f';ctx.fillRect(camX,camY,W,H);ctx.globalAlpha=1}
 if(skillLevels.blackhole){let radius=150+skillLevels.blackhole*55;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(time*.55);ctx.strokeStyle='#a887ff';ctx.shadowColor='#9c6aff';ctx.shadowBlur=12;ctx.lineWidth=3;ctx.globalAlpha=.58;for(let i=0;i<3;i++){ctx.beginPath();ctx.arc(0,0,radius*(.5+i*.25),i*2.1,i*2.1+Math.PI*1.25);ctx.stroke()}for(let i=0;i<7;i++){let a=i*Math.PI*2/7-time*.6,r=radius*(.55+.15*Math.sin(time*2+i));ctx.fillStyle='#bd9bff';ctx.beginPath();ctx.arc(Math.cos(a)*r,Math.sin(a)*r,3,0,7);ctx.fill()}ctx.restore()}
