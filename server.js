@@ -37,6 +37,18 @@ function jsonResponse(res,status,value){res.writeHead(status,{'Content-Type':'ap
 function send(c,obj){if(!c||c.dead||c.socket.destroyed)return;try{let data=Buffer.from(JSON.stringify(obj));if(data.length>65535)return;let h=data.length<126?Buffer.from([0x81,data.length]):Buffer.from([0x81,126,data.length>>8,data.length&255]);c.socket.write(Buffer.concat([h,data]))}catch(e){closeClient(c)}}
 function broadcast(room,msg,except){for(let c of room.players)if(c!==except)send(c,msg)}
 function roomFor(c){return c.room?rooms.get(c.room):null}
+const ALLOWED_SKILLS=new Set(['nuke','back','drones','orb','cutter','freeze','heal','lightning','shield','blackhole','rocket','meteor','flame','boomerang','explosive']);
+function cleanSkills(input){
+ const out={};
+ if(!input||typeof input!=='object'||Array.isArray(input))return out;
+ for(const [key,value] of Object.entries(input)){
+  if(!ALLOWED_SKILLS.has(key))continue;
+  const level=Number(value);
+  if(Number.isFinite(level)&&level>=1)out[key]=Math.min(5,Math.floor(level));
+ }
+ return out;
+}
+
 
 const CLUTCH_MS=30000;
 function clutchFail(room){
@@ -115,7 +127,7 @@ function processMsg(c,m){if(!m||typeof m!=='object'||typeof m.t!=='string')retur
  if(!room.started)return;
  if(m.t==='state'){
   if(!Number.isFinite(m.x)||!Number.isFinite(m.y))return;
-  let state={t:'state',id:c.id,name:c.name,x:Math.max(0,Math.min(6000,m.x)),y:Math.max(0,Math.min(6000,m.y)),angle:Number(m.angle)||0,hp:Math.max(0,Math.min(10000,Number(m.hp)||0)),skin:String(m.skin||'standard').slice(0,20),gun:String(m.gun||'pistol').slice(0,20),pet:String(m.pet||'none').slice(0,20),skills:m.skills&&typeof m.skills==='object'?m.skills:{}};
+  let state={t:'state',id:c.id,name:c.name,x:Math.max(0,Math.min(6000,m.x)),y:Math.max(0,Math.min(6000,m.y)),angle:Number(m.angle)||0,hp:Math.max(0,Math.min(10000,Number(m.hp)||0)),skin:String(m.skin||'standard').slice(0,20),gun:String(m.gun||'pistol').slice(0,20),pet:String(m.pet||'none').slice(0,20),skills:cleanSkills(m.skills)};
   c.hp=state.hp;broadcast(room,state,c);return;
  }
  if(m.t==='shot'){
