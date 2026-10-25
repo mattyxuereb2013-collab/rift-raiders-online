@@ -67,7 +67,7 @@ setInterval(()=>{for(const room of rooms.values())if(room.started)clutchTick(roo
 
 function partyState(room){return {t:'party',map:room.map,players:[...room.players].map(p=>({id:p.id,name:p.name,ready:!!p.ready,host:p.id===room.host}))}}
 function broadcastParty(room){broadcast(room,partyState(room))}
-function closeClient(c){if(c.dead)return;c.dead=true;clients.delete(c);let room=roomFor(c);if(room){room.players.delete(c);if(room.clutch&&room.clutch.survivor===c.id)clutchFail(room);if(room.host===c.id){for(let other of room.players){send(other,{t:'hostgone'});other.room=null}rooms.delete(room.code)}else{broadcast(room,{t:'leave',id:c.id});broadcastParty(room);if(!room.players.size)rooms.delete(room.code)}}c.room=null;try{c.socket.destroy()}catch(e){}}
+function closeClient(c){if(c.dead)return;c.dead=true;clients.delete(c);let room=roomFor(c);if(room){room.players.delete(c);if(room.clutch&&(room.clutch.survivor===c.id||room.players.size<2))clutchFail(room);if(room.host===c.id){for(let other of room.players){send(other,{t:'hostgone'});other.room=null}rooms.delete(room.code)}else{broadcast(room,{t:'leave',id:c.id});broadcastParty(room);if(!room.players.size)rooms.delete(room.code)}}c.room=null;try{c.socket.destroy()}catch(e){}}
 function hashPass(pass,salt){return crypto.scryptSync(pass,salt,32)}
 function equalPass(pass,room){try{return crypto.timingSafeEqual(hashPass(pass,room.salt),room.hash)}catch(e){return false}}
 function newCode(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';for(let n=0;n<30;n++){let code='';for(let i=0;i<6;i++)code+=chars[crypto.randomInt(chars.length)];if(!rooms.has(code))return code}throw Error('Cannot allocate lobby code')}
