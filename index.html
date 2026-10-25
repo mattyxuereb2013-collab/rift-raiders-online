@@ -339,15 +339,15 @@ function rankForPoints(points){let value=Math.max(0,Number(points)||0),tier=RANK
 function rankLabel(points){let r=rankForPoints(points);return r[0]+' '+r[1]}
 function nextRank(points){let value=Math.max(0,Number(points)||0);return RANK_TIERS.find(r=>r[2]>value)||null}
 function rankProgress(name=playerName()){let points=rankedPoints(name),next=nextRank(points);return rankLabel(points)+' · '+points+' RP'+(next?' · '+(next[2]-points)+' RP to '+next[1]:' · MAX RANK!')}
-function awardRankPoints(name,wave,kills){let key=String(name||'Raider').trim().toLowerCase(),old=rankedPoints(name),current=rankForPoints(old),w=Math.max(1,Number(wave)||1),k=Math.max(0,Number(kills)||0);
- // Progress is earned once per completed match, with stronger survival and kills rewarding more.
- let base=Math.max(4,Math.min(115,Math.floor(5+w*1.6+Math.sqrt(k)*2.2)));
- // Higher ranks require both more total RP and more games: diminishing rewards per division.
- let division=RANK_TIERS.indexOf(current),earned=Math.max(2,Math.floor(base/(1+division*.075)));
- // Each rank gets harder; a single match cannot skip multiple divisions.
- let next=nextRank(old),gain=next?Math.min(earned,Math.max(0,next[2]-old)):0;
- save.rankPoints[key]=old+gain;
- return {earned:gain,previous:current,rank:rankForPoints(old+gain),promoted:rankForPoints(old+gain)!==current};
+function awardRankPoints(name,wave,kills){
+ const key=String(name||'Raider').trim().toLowerCase(),old=rankedPoints(name),previous=rankForPoints(old),w=Math.max(1,Number(wave)||1),k=Math.max(0,Number(kills)||0);
+ const division=RANK_TIERS.indexOf(previous);
+ // Low waves with few kills are a loss; surviving longer and fighting earns RP.
+ const performance=Math.round((w-4)*5+k*1.6-10-division*1.5);
+ const delta=Math.max(-35,Math.min(90,performance));
+ const newPoints=Math.max(0,old+delta),earned=newPoints-old,rank=rankForPoints(newPoints);
+ save.rankPoints[key]=newPoints;
+ return {earned,oldRP:old,newRP:newPoints,previous,rank,promoted:RANK_TIERS.indexOf(rank)>division,demoted:RANK_TIERS.indexOf(rank)<division};
 }
 // Sync locally saved RP to permanent cloud storage. Cloud responds with the highest saved RP, so devices cannot accidentally erase progress.
 // Public Supabase project URL and publishable key. No server-side secret is shipped to browsers.
@@ -365,11 +365,20 @@ async function accountDb(path,options={}){let token=await accountToken();if(!tok
 async function loadAccount(){let token=await accountToken();if(!token){account=null;return null}let user=await authRequest('/auth/v1/user',{headers:authHeaders(token)});let rows=await accountDb('raider_profiles?select=user_id,display_name&user_id=eq.'+encodeURIComponent(user.id));let profile=rows&&rows[0];if(!profile){let name=String(save.pendingAccountName||playerName()||'').trim();if(!/^[a-zA-Z0-9_ -]{2,18}$/.test(name))throw Error('Choose a 2–18 character raider name in your account');await accountDb('raider_profiles?on_conflict=user_id',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:JSON.stringify({user_id:user.id,display_name:name})});profile={user_id:user.id,display_name:name}}
 account={id:user.id,email:user.email,name:profile.display_name};if(playerName()!==account.name){save.playerName=account.name;net.name=account.name;persist()}delete save.pendingAccountName;persist();return account}
 async function accountSignOut(){let token=await accountToken();if(token)authRequest('/auth/v1/logout',{method:'POST',headers:authHeaders(token)}).catch(()=>{});setAccountSession(null);account=null}
-async function syncRank(){if(!accountSession)return {ok:false,reason:'Sign in to protect your rank'};if(rankSyncing)return rankSyncing;
-rankSyncing=(async()=>{try{if(!account)await loadAccount();if(!account)return {ok:false};let key=playerName().toLowerCase(),season=rankSeason(),rows=await accountDb('raider_account_ranks?select=rank_points&user_id=eq.'+encodeURIComponent(account.id)+'&season=eq.'+season),cloud=rows&&rows[0]?Number(rows[0].rank_points)||0:0;
-let points=Math.max(cloud,rankedPoints());save.rankPoints[key]=points;persist();
-if(points>cloud||!rows||!rows.length)await accountDb('raider_account_ranks?on_conflict=user_id,season',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({user_id:account.id,season,rank_points:points})});
-return {ok:true}}catch(e){return {ok:false,reason:e.message}}finally{rankSyncing=null}})();return rankSyncing}
+async function syncRank(push=false){
+ if(!accountSession)return {ok:false,reason:'Sign in to protect your rank'};
+ if(rankSyncing)return rankSyncing;
+ rankSyncing=(async()=>{try{
+  if(!account)await loadAccount();if(!account)return {ok:false};
+  const key=playerName().toLowerCase(),season=rankSeason();
+  const rows=await accountDb('raider_account_ranks?select=rank_points&user_id=eq.'+encodeURIComponent(account.id)+'&season=eq.'+season);
+  const local=rankedPoints(),cloud=rows&&rows[0]?Number(rows[0].rank_points)||0:null;
+  // Normal sync loads cloud; after a finished match, push the exact result including losses.
+  const points=push||cloud===null?local:cloud;
+  if(push||cloud===null)await accountDb('raider_account_ranks?on_conflict=user_id,season',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({user_id:account.id,season,rank_points:points})});
+  save.rankPoints[key]=points;persist();return {ok:true};
+ }catch(e){return {ok:false,reason:e.message}}finally{rankSyncing=null}})();return rankSyncing;
+}
 function accountRecoveryScreen(token){mode='account';menu.style.display='flex';card.style.maxWidth='560px';card.innerHTML='<h1>🔐 RESET YOUR PASSWORD</h1><p>Enter a new password for your Raider account.</p><p><input id="newAccountPassword" type="password" minlength="8" placeholder="New password (8+ characters)"></p><p id="recoveryStatus"></p><button id="confirmNewPassword">SAVE NEW PASSWORD</button><button id="recoveryBack">BACK TO GAME</button>';
 $('confirmNewPassword').onclick=async()=>{let password=$('newAccountPassword').value;if(password.length<8){$('recoveryStatus').textContent='Use at least 8 characters';return}try{let v=await authRequest('/auth/v1/user',{method:'PUT',headers:authHeaders(token),body:JSON.stringify({password})});$('recoveryStatus').textContent='✅ Password updated! Sign in with your new password.';setAccountSession(null);account=null}catch(e){$('recoveryStatus').textContent='⚠️ '+e.message}};
 $('recoveryBack').onclick=()=>{mode='menu';card.style.maxWidth='1100px';renderShop()}}
@@ -861,11 +870,11 @@ function resume(){
 function die(){upgradeOpen=false;menu.style.background='#050b15ec';card.style.maxWidth='1100px';let runMode=net.active?'online':'offline',scoreName=playerName()||net.name||'Raider';if(net.active)netDisconnect();mode='dead';firing=false;
 const rankResult=awardRankPoints(scoreName,wave,kills);if(accountSession){awardBattlePassXP(wave,kills);recordRaiderMatch(wave,kills,runBossKills)}
 save.best=Math.max(save.best,kills);save.highScores=bestRuns([...save.highScores,{name:scoreName,wave,kills,mode:runMode,rankPoints:rankedPoints(scoreName)}]).slice(0,10);save.highScores=save.highScores.map(v=>String(v.name).toLowerCase()===scoreName.toLowerCase()?{...v,rankPoints:rankedPoints(scoreName)}:v);persist();
-if(accountSession)syncRank();try{fetch('/score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:scoreName,wave,kills,mode:runMode,rankPoints:rankedPoints(scoreName),rankSeason:rankSeason()})}).then(r=>r.json()).then(v=>{if(v.rankSaved&&Number.isFinite(Number(v.rankPoints))){let key=scoreName.toLowerCase();save.rankPoints[key]=Math.max(rankedPoints(scoreName),Number(v.rankPoints));persist()}}).catch(()=>{})}catch(e){}
+if(accountSession)syncRank(true);try{fetch('/score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:scoreName,wave,kills,mode:runMode,rankPoints:rankedPoints(scoreName),rankSeason:rankSeason()})}).then(r=>r.json()).then(v=>{if(v.rankSaved&&Number.isFinite(Number(v.rankPoints))){let key=scoreName.toLowerCase();/* Account rank is authoritative; public leaderboard updates must not overwrite RP losses. */}}).catch(()=>{})}catch(e){}
 menu.style.display='flex';showRankReveal(scoreName,rankResult,wave,kills,level)}
 function showRankReveal(scoreName,rankResult,wave,kills,level){
- const finalRP=rankedPoints(scoreName),oldRP=Math.max(0,finalRP-rankResult.earned),oldTier=rankForPoints(oldRP),newTier=rankForPoints(finalRP),next=nextRank(finalRP),nextIndex=RANK_TIERS.indexOf(newTier),upper=next?next[2]:finalRP,lower=newTier[2],progress=next?Math.max(0,Math.min(100,(finalRP-lower)/Math.max(1,upper-lower)*100)):100;
- card.innerHTML=`<div id="rankReveal"><div class="rankHeadline">🏆 MATCH COMPLETE</div><p>WAVE ${wave} · ${kills} KILLS · LEVEL ${level}</p><div class="rankWheel" id="rankWheel"><div class="rankWheelInner"><div class="rankEmblem" id="rankEmblem">${oldTier[0]}</div><div class="rankTier" id="rankTier">${oldTier[1]}</div><div class="rankCount" id="rankCount">${oldRP} RP</div></div></div><div class="rankEarned">+${rankResult.earned} RANK POINTS</div><div id="rankMessage" style="min-height:28px;color:#cbe6ff;font-weight:900">CALCULATING RANK...</div><p id="rankNext">YOUR RANK PROGRESS</p><p>🪙 ${save.coins} TOTAL COINS</p><div class="rankButtons"><button id="again">⚔️ PLAY AGAIN</button><button id="shopsAgain">🏠 LOBBY</button></div></div>`;
+ const finalRP=rankResult.newRP,oldRP=rankResult.oldRP,oldTier=rankForPoints(oldRP),newTier=rankForPoints(finalRP),next=nextRank(finalRP),nextIndex=RANK_TIERS.indexOf(newTier),upper=next?next[2]:finalRP,lower=newTier[2],progress=next?Math.max(0,Math.min(100,(finalRP-lower)/Math.max(1,upper-lower)*100)):100;
+ card.innerHTML=`<div id="rankReveal"><div class="rankHeadline">🏆 MATCH COMPLETE</div><p>WAVE ${wave} · ${kills} KILLS · LEVEL ${level}</p><div class="rankWheel" id="rankWheel"><div class="rankWheelInner"><div class="rankEmblem" id="rankEmblem">${oldTier[0]}</div><div class="rankTier" id="rankTier">${oldTier[1]}</div><div class="rankCount" id="rankCount">${oldRP} RP</div></div></div><div class="rankEarned" style="color:${rankResult.earned<0?'#ff8c9b':'#8fffc3'}">${rankResult.earned>0?'+':''}${rankResult.earned} RANK POINTS</div><div id="rankMessage" style="min-height:28px;color:#cbe6ff;font-weight:900">CALCULATING RANK...</div><p id="rankNext">YOUR RANK PROGRESS</p><p>🪙 ${save.coins} TOTAL COINS</p><div class="rankButtons"><button id="again">⚔️ PLAY AGAIN</button><button id="shopsAgain">🏠 LOBBY</button></div></div>`;
  $('again').onclick=begin;$('shopsAgain').onclick=()=>{mode='menu';renderShop()};
  const wheel=$('rankWheel'),emblem=$('rankEmblem'),tierEl=$('rankTier'),countEl=$('rankCount'),msg=$('rankMessage'),nextEl=$('rankNext');
  const oldNext=nextRank(oldRP),oldProgress=oldNext?Math.max(0,Math.min(100,(oldRP-oldTier[2])/Math.max(1,oldNext[2]-oldTier[2])*100)):100;
@@ -874,8 +883,8 @@ function showRankReveal(scoreName,rankResult,wave,kills,level){
  wheel.style.setProperty('--progress',shownProgress);emblem.textContent=shownTier[0];tierEl.textContent=shownTier[1];countEl.textContent=shownRP+' RP';
  if(t<1){requestAnimationFrame(frame);return}
  wheel.style.setProperty('--progress',progress);emblem.textContent=newTier[0];tierEl.textContent=newTier[1];countEl.textContent=finalRP+' RP';
- msg.textContent=rankResult.promoted?'🎉 RANK UP! '+newTier[1]:'⚡ RANK PROGRESS UPDATED';
- if(rankResult.promoted)msg.className='rankPromoted';
+ msg.textContent=rankResult.promoted?'🎉 RANK UP! '+newTier[1]:rankResult.demoted?'💔 RANK DOWN! '+newTier[1]:rankResult.earned<0?'⚠️ RANK POINTS LOST':'⚡ RANK PROGRESS UPDATED';
+ if(rankResult.promoted||rankResult.demoted)msg.className='rankPromoted';
  nextEl.textContent=next?(next[2]-finalRP)+' RP TO '+next[1]:'🌌 MAX RANK ACHIEVED!';
  }
  requestAnimationFrame(frame);
