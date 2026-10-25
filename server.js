@@ -37,12 +37,14 @@ function jsonResponse(res,status,value){res.writeHead(status,{'Content-Type':'ap
 function send(c,obj){if(!c||c.dead||c.socket.destroyed)return;try{let data=Buffer.from(JSON.stringify(obj));if(data.length>65535)return;let h=data.length<126?Buffer.from([0x81,data.length]):Buffer.from([0x81,126,data.length>>8,data.length&255]);c.socket.write(Buffer.concat([h,data]))}catch(e){closeClient(c)}}
 function broadcast(room,msg,except){for(let c of room.players)if(c!==except)send(c,msg)}
 function roomFor(c){return c.room?rooms.get(c.room):null}
-function closeClient(c){if(c.dead)return;c.dead=true;clients.delete(c);let room=roomFor(c);if(room){room.players.delete(c);if(room.host===c.id){for(let other of room.players){send(other,{t:'hostgone'});other.room=null}rooms.delete(room.code)}else{broadcast(room,{t:'leave',id:c.id});if(!room.players.size)rooms.delete(room.code)}}c.room=null;try{c.socket.destroy()}catch(e){}}
+function partyState(room){return {t:'party',map:room.map,players:[...room.players].map(p=>({id:p.id,name:p.name,ready:!!p.ready,host:p.id===room.host}))}}
+function broadcastParty(room){broadcast(room,partyState(room))}
+function closeClient(c){if(c.dead)return;c.dead=true;clients.delete(c);let room=roomFor(c);if(room){room.players.delete(c);if(room.host===c.id){for(let other of room.players){send(other,{t:'hostgone'});other.room=null}rooms.delete(room.code)}else{broadcast(room,{t:'leave',id:c.id});broadcastParty(room);if(!room.players.size)rooms.delete(room.code)}}c.room=null;try{c.socket.destroy()}catch(e){}}
 function hashPass(pass,salt){return crypto.scryptSync(pass,salt,32)}
 function equalPass(pass,room){try{return crypto.timingSafeEqual(hashPass(pass,room.salt),room.hash)}catch(e){return false}}
 function newCode(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';for(let n=0;n<30;n++){let code='';for(let i=0;i<6;i++)code+=chars[crypto.randomInt(chars.length)];if(!rooms.has(code))return code}throw Error('Cannot allocate lobby code')}
 function validatePassword(m){return typeof m.password==='string'&&m.password.length>=4&&m.password.length<=32}
-function welcome(c,room){c.room=room.code;room.players.add(c);send(c,{t:'welcome',id:c.id,host:room.host===c.id,map:room.map,room:room.code,...(room.host===c.id?{inviteToken:room.inviteToken}:{}),players:[...room.players].filter(x=>x!==c).map(x=>({id:x.id,name:x.name}))});broadcast(room,{t:'join',id:c.id,name:c.name},c)}
+function welcome(c,room){c.room=room.code;c.ready=false;room.players.add(c);send(c,{t:'welcome',id:c.id,host:room.host===c.id,map:room.map,room:room.code,...(room.host===c.id?{inviteToken:room.inviteToken}:{}),players:[...room.players].filter(x=>x!==c).map(x=>({id:x.id,name:x.name,ready:!!x.ready}))});broadcast(room,{t:'join',id:c.id,name:c.name,ready:false},c);broadcastParty(room)}
 function processMsg(c,m){if(!m||typeof m!=='object'||typeof m.t!=='string')return;
  if(m.t==='create'||m.t==='join'){
   if(c.room){send(c,{t:'error',message:'Already in a lobby.'});return}
@@ -62,10 +64,25 @@ function processMsg(c,m){if(!m||typeof m!=='object'||typeof m.t!=='string')retur
   welcome(c,room);return;
  }
  const room=roomFor(c);if(!room||!room.players.has(c))return;
+ if(m.t==='ready'){
+  if(room.started)return;
+  c.ready=!!m.ready;
+  broadcastParty(room);return;
+ }
+ if(m.t==='map'){
+  if(room.started)return;
+  if(c.id!==room.host){send(c,{t:'error',message:'Only the host can choose the map.'});return}
+  const map=String(m.map||'');
+  if(!/^[a-z]{3,12}$/.test(map)){send(c,{t:'error',message:'Invalid map.'});return}
+  room.map=map;
+  for(const player of room.players)player.ready=false;
+  broadcastParty(room);return;
+ }
  if(m.t==='start'){
   if(c.id!==room.host){send(c,{t:'error',message:'Only the host can start.'});return}
   if(room.players.size<2){send(c,{t:'error',message:'Wait for a teammate before starting.'});return}
-  if(room.started)return;room.started=true;broadcast(room,{t:'start'});return;
+  if([...room.players].some(p=>!p.ready)){send(c,{t:'error',message:'Every player must press READY first.'});return}
+  if(room.started)return;room.started=true;broadcast(room,{t:'start',map:room.map});return;
  }
  if(!room.started)return;
  if(m.t==='state'){
