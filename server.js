@@ -246,11 +246,21 @@ const server=http.createServer((req,res)=>{
   }catch(e){jsonResponse(res,/sign in|session expired/i.test(e.message)?401:400,{error:e.message})}})();return;
  }
  if(pathname==='/leaderboard'&&req.method==='GET'){
-  checkRankSeason();
-  if(!permanentScores){accountRankRows(scores.slice(0,30)).then(rows=>jsonResponse(res,200,rows)).catch(()=>jsonResponse(res,200,scores.slice(0,30).map(withRank)));return}
-  dbCall('raider_scores?select=name,wave,kills,mode&order=wave.desc,kills.desc&limit=30')
-    .then(cloudRankRows).then(rows=>jsonResponse(res,200,rows))
-    .catch(e=>{console.error(e.message);jsonResponse(res,503,{error:'Leaderboard temporarily unavailable'})});return;
+  (async()=>{try{
+   const ranked=await publicDbCall('raider_account_ranks?select=user_id,rank_points&season=eq.'+encodeURIComponent(rankSeason())+'&order=rank_points.desc,user_id.asc&limit=100');
+   if(!ranked.length){jsonResponse(res,200,[]);return}
+   const ids=ranked.map(r=>r.user_id).filter(id=>/^[0-9a-f-]{36}$/i.test(id));
+   const profiles=await publicDbCall('raider_profiles?select=user_id,display_name&user_id=in.('+ids.join(',')+')');
+   const names=new Map(profiles.map(p=>[p.user_id,p.display_name]));
+   let runs=scores;
+   if(permanentScores){
+    const filter=profiles.map(p=>'"'+String(p.display_name).replace(/\\/g,'\\\\').replace(/"/g,'\\"')+'"').join(',');
+    runs=filter?await dbCall('raider_scores?select=name,wave,kills,mode&name=in.'+encodeURIComponent('('+filter+')')):[];
+   }
+   const byName=new Map(runs.map(r=>[r.name.toLowerCase(),r]));
+   const rows=ranked.filter(r=>names.has(r.user_id)).map(r=>{const name=names.get(r.user_id);return {...(byName.get(name.toLowerCase())||{wave:0,kills:0,mode:'unplayed'}),name,rankPoints:Number(r.rank_points)||0}});
+   jsonResponse(res,200,rows);
+  }catch(e){console.error('Rank leaderboard:',e.message);jsonResponse(res,503,{error:'Rank leaderboard temporarily unavailable'})}})();return;
  }
  if(pathname==='/rank/history'&&req.method==='GET'){
   if(!permanentScores){jsonResponse(res,503,{error:'Rank archive requires permanent storage'});return}
