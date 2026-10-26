@@ -37,7 +37,7 @@ function jsonResponse(res,status,value){res.writeHead(status,{'Content-Type':'ap
 function send(c,obj){if(!c||c.dead||c.socket.destroyed)return;try{let data=Buffer.from(JSON.stringify(obj));if(data.length>65535)return;let h=data.length<126?Buffer.from([0x81,data.length]):Buffer.from([0x81,126,data.length>>8,data.length&255]);c.socket.write(Buffer.concat([h,data]))}catch(e){closeClient(c)}}
 function broadcast(room,msg,except){for(let c of room.players)if(c!==except)send(c,msg)}
 function roomFor(c){return c.room?rooms.get(c.room):null}
-const ALLOWED_SKILLS=new Set(['nuke','back','drones','orb','cutter','freeze','heal','lightning','shield','blackhole','rocket','meteor','flame','boomerang','explosive']);
+const ALLOWED_SKILLS=new Set(['nuke','back','drones','orb','cutter','freeze','heal','lightning','shield','blackhole','rocket','meteor','flame','boomerang','explosive','pulse','haste']);
 function cleanSkills(input){
  const out={};
  if(!input||typeof input!=='object'||Array.isArray(input))return out;
@@ -106,8 +106,8 @@ function processMsg(c,m){if(!m||typeof m!=='object'||typeof m.t!=='string')retur
  const room=roomFor(c);if(!room||!room.players.has(c))return;
  if(m.t==='loadout'){
   if(room.started)return;
-  const skins=['standard','rookie','spider','shadow','gold','cyber','galaxy','phantom','celestial'];
-  const pets=['none','dog','cat','fox','owl','wolf','dragon','phoenix','griffin','bee','turtle','bat','robot','unicorn','golem','rocketpet'];
+  const skins=['standard','rookie','spider','shadow','gold','cyber','galaxy','phantom','celestial','infernoskin','glacierskin'];
+  const pets=['none','dog','cat','fox','owl','wolf','dragon','phoenix','griffin','bee','turtle','bat','robot','unicorn','golem','rocketpet','hydrapet','crystalpet','omegapet'];
   c.skin=skins.includes(m.skin)?m.skin:'standard';c.pet=pets.includes(m.pet)?m.pet:'none';
   c.ready=false;broadcastParty(room);return;
  }
@@ -248,6 +248,19 @@ const server=http.createServer((req,res)=>{
   }catch(e){jsonResponse(res,/sign in|session expired/i.test(e.message)?401:400,{error:e.message})}})();return;
  }
  if(pathname==='/leaderboard'&&req.method==='GET'){
+  const board=new URL(req.url,'http://localhost').searchParams.get('type')||'ranks';
+  if(board==='waves'){
+   const query=permanentScores?dbCall('raider_scores?select=name,wave,kills,mode&order=wave.desc,kills.desc&limit=100'):Promise.resolve([...scores].sort((a,b)=>b.wave-a.wave||b.kills-a.kills));
+   query.then(rows=>jsonResponse(res,200,rows)).catch(()=>jsonResponse(res,503,{error:'Wave leaderboard unavailable'}));return;
+  }
+  if(board==='trophies'){
+   (async()=>{try{const totals=await publicDbCall('raider_trophy_totals?select=user_id,trophies&order=trophies.desc,user_id.asc&limit=100');if(!totals.length){jsonResponse(res,200,[]);return}
+   const ids=totals.map(r=>r.user_id).filter(id=>/^[0-9a-f-]{36}$/i.test(id));
+   const profiles=await publicDbCall('raider_profiles?select=user_id,display_name&user_id=in.('+ids.join(',')+')');
+   const names=new Map(profiles.map(p=>[p.user_id,p.display_name]));
+   jsonResponse(res,200,totals.filter(r=>names.has(r.user_id)).map(r=>({name:names.get(r.user_id),trophies:Number(r.trophies)})));
+   }catch(e){jsonResponse(res,503,{error:'Trophy leaderboard unavailable'})}})();return;
+  }
   (async()=>{try{
    const ranked=await publicDbCall('raider_account_ranks?select=user_id,rank_points&season=eq.'+encodeURIComponent(rankSeason())+'&order=rank_points.desc,user_id.asc&limit=100');
    if(!ranked.length){jsonResponse(res,200,[]);return}
@@ -329,3 +342,4 @@ server.on('upgrade',(req,socket)=>{
  clients.add(c);socket.on('data',d=>decodeFrames(c,d));socket.on('error',()=>closeClient(c));socket.on('close',()=>closeClient(c));
 });
 server.listen(PORT,HOST,()=>console.log('RIFT RAIDERS online lobby server: http://localhost:'+PORT+' | players 2–4 | private password lobbies'));
+
