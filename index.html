@@ -1027,7 +1027,12 @@ async function checkScreenInvites(){
  }catch(e){}finally{invitesBusy=false}
 }
 setInterval(()=>{if(!accountSession)return;if(Date.now()-presenceLastAt>20000)touchRaiderPresence();checkScreenInvites()},6000);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){touchRaiderPresence();checkScreenInvites()}});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){touchRaiderPresence();checkScreenInvites();autoAccountRefresh()}});
+// Automatically refresh the existing account-backed pet inventory and rank when returning to the game.
+// Full inventory/coins/trophy sync needs an authenticated server-side profile store before enabling.
+let lastAutoAccountRefresh=0,autoAccountRefreshBusy=false;
+async function autoAccountRefresh(){if(!accountSession||autoAccountRefreshBusy||Date.now()-lastAutoAccountRefresh<20000)return;autoAccountRefreshBusy=true;lastAutoAccountRefresh=Date.now();try{await loadAccount();await syncRank()}catch(e){console.warn('Account refresh unavailable:',e.message)}finally{autoAccountRefreshBusy=false}}
+setInterval(()=>{if(document.visibilityState==='visible'&&accountSession)autoAccountRefresh()},60000);
 async function acceptedFriendRoster(){
  if(!accountSession)return [];
  if(!account)await loadAccount();
