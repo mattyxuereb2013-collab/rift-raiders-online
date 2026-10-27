@@ -597,7 +597,7 @@ function drawWeb(x,y,r){
 
 let save={coins:0,guns:{pistol:1},maps:{neon:1},pets:{none:1},skins:{standard:1},gunLevels:{},petLevels:{},gun:'pistol',map:'neon',pet:'none',skin:'standard',best:0,dailySpin:'',highScores:[]};
 try{let old=JSON.parse(localStorage.getItem('rift_raiders_save')||localStorage.getItem('shadow_siege_save')||'null');if(old)save={...save,...old}}catch(e){}
-function persist(){try{localStorage.setItem('rift_raiders_save',JSON.stringify(save))}catch(e){}}
+function persist(){try{localStorage.setItem('rift_raiders_save',JSON.stringify(save))}catch(e){}if(typeof fullSyncReady!=='undefined'&&fullSyncReady)scheduleFullSync()}
 if(!Array.isArray(save.highScores))save.highScores=[];
 if(!save.petLevels||typeof save.petLevels!=='object')save.petLevels={};
 if(!save.pets||typeof save.pets!=='object')save.pets={none:1};
@@ -656,10 +656,31 @@ try{petCloudOwner=localStorage.getItem(PET_OWNER_STORAGE)||''}catch(e){}
 
 try{accountSession=JSON.parse(localStorage.getItem(AUTH_STORAGE)||'null')}catch(e){}
 function authHeaders(token){return {'apikey':AUTH_KEY,...(token?{'Authorization':'Bearer '+token}:{}),'Content-Type':'application/json'}}
-async function authRequest(path,options={}){let r=await fetch(AUTH_URL+path,{...options,headers:{...authHeaders(),...(options.headers||{})}}),v=await r.json().catch(()=>({}));if(!r.ok)throw Error(v.msg||v.error_description||v.message||v.error||'Account request failed');return v}
-function setAccountSession(v){accountSession=v&&v.access_token?v:null;try{if(accountSession)localStorage.setItem(AUTH_STORAGE,JSON.stringify(accountSession));else localStorage.removeItem(AUTH_STORAGE)}catch(e){}}
-async function accountToken(){if(!accountSession)return null;if(accountSession.expires_at&&accountSession.expires_at>Date.now()/1000+60)return accountSession.access_token;if(!accountSession.refresh_token){setAccountSession(null);account=null;return null}
-try{let v=await authRequest('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:JSON.stringify({refresh_token:accountSession.refresh_token})});setAccountSession(v);return v.access_token}catch(e){setAccountSession(null);account=null;return null}}
+async function authRequest(path,options={}){let r=await fetch(AUTH_URL+path,{...options,headers:{...authHeaders(),...(options.headers||{})}}),v=await r.json().catch(()=>({}));if(!r.ok){const e=Error(v.msg||v.error_description||v.message||v.error||'Account request failed');e.status=r.status;e.code=v.error_code||v.code;throw e}return v}
+let accountRefreshPromise=null;
+function setAccountSession(v){accountSession=v&&v.access_token?{...v,expires_at:v.expires_at||(Date.now()/1000+(Number(v.expires_in)||3600))}:null;try{if(accountSession)localStorage.setItem(AUTH_STORAGE,JSON.stringify(accountSession));else localStorage.removeItem(AUTH_STORAGE)}catch(e){}}
+async function accountToken(){
+ if(!accountSession)return null;
+ // Reuse a refresh performed in another tab before rotating its token again.
+ try{const stored=JSON.parse(localStorage.getItem(AUTH_STORAGE)||'null');if(stored?.access_token&&stored.expires_at>(accountSession.expires_at||0))accountSession=stored}catch(e){}
+ if(accountSession.expires_at>Date.now()/1000+60)return accountSession.access_token;
+ if(accountRefreshPromise)return accountRefreshPromise;
+ if(!accountSession.refresh_token){setAccountSession(null);account=null;return null}
+ const refreshing=accountSession.refresh_token;
+ accountRefreshPromise=(async()=>{try{
+  const v=await authRequest('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:JSON.stringify({refresh_token:refreshing})});
+  if(accountSession?.refresh_token!==refreshing)return accountSession?.access_token||null;
+  setAccountSession(v);return v.access_token;
+ }catch(e){
+  // Offline connections and server errors must never erase a remembered login.
+  if(['refresh_token_not_found','refresh_token_already_used','session_not_found'].includes(e.code)&&accountSession?.refresh_token===refreshing){
+   let stored=null;try{stored=JSON.parse(localStorage.getItem(AUTH_STORAGE)||'null')}catch(_){}
+   if(stored?.refresh_token&&stored.refresh_token!==refreshing){accountSession=stored;return stored.access_token}
+   setAccountSession(null);account=null;return null;
+  }
+  throw e;
+ }finally{accountRefreshPromise=null}})();return accountRefreshPromise;
+}
 async function accountDb(path,options={}){let token=await accountToken();if(!token)throw Error('Sign in to save your account');let r=await fetch(AUTH_URL+'/rest/v1/'+path,{...options,headers:{...authHeaders(token),...(options.headers||{})}});if(!r.ok){let v=await r.json().catch(()=>({}));throw Error(v.message||v.details||'Could not save account data')}return r.status===204?null:r.json().catch(()=>null)}
 function persistPetChanges(){try{localStorage.setItem(PET_EVENT_STORAGE,JSON.stringify(pendingPetChanges))}catch(e){}}
 function newPetEventId(){return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{let r=Math.random()*16|0;return(c==='x'?r:(r&3|8)).toString(16)})}
@@ -707,9 +728,95 @@ async function syncPetInventory(){
  })();
  return petSyncPromise;
 }
+
+const FULL_SAVE_FIELDS=['coins','guns','maps','skins','gunLevels','omegaBundle','gun','map','skin','pet','equippedTitle','dailySpin','best','highScores','passRewardsApplied','battlePassTitles','questCoinLedger','trophyClaims'];
+var fullSyncReady=false,fullSyncBusy=null,fullSyncTimer=0,fullSyncApplying=false,fullSyncOk=false;
+const fullClone=v=>JSON.parse(JSON.stringify(v));
+function fullSnapshot(){const out={};for(const k of FULL_SAVE_FIELDS)if(save[k]!==undefined)out[k]=fullClone(save[k]);return out}
+function fullMeta(uid){try{return JSON.parse(localStorage.getItem('rift_full_meta_'+uid)||'{}')}catch(e){return {}}}
+function fullStoreMeta(uid,v){localStorage.setItem('rift_full_meta_'+uid,JSON.stringify(v))}
+function fullMergeValue(a,b){
+ if(Array.isArray(a)||Array.isArray(b))return [...new Map([...(Array.isArray(a)?a:[]),...(Array.isArray(b)?b:[])].map(v=>[JSON.stringify(v),v])).values()];
+ if(a&&typeof a==='object'||b&&typeof b==='object'){const out={};for(const k of new Set([...Object.keys(a||{}),...Object.keys(b||{})]))if(!['__proto__','constructor','prototype'].includes(k))out[k]=fullMergeValue(a?.[k],b?.[k]);return out}
+ if(typeof a==='number'||typeof b==='number')return Math.max(Number(a)||0,Number(b)||0);
+ if(typeof a==='boolean'||typeof b==='boolean')return !!a||!!b;
+ return b===undefined?a:b;
+}
+function duplicateRewardCoins(base,local,remote){
+ let duplicates=0;
+ for(const [key,list] of Object.entries(local.passRewardsApplied||{})){
+  const old=new Set(base.passRewardsApplied?.[key]||[]),other=new Set(remote.passRewardsApplied?.[key]||[]);
+  for(const claim of list){if(old.has(claim)||!other.has(claim))continue;const [track,num,boost]=claim.split(':');const n=Number(num);if(!Number.isInteger(n)||n<1||n>30)continue;const reward=passReward(n,track);if(!boost)duplicates+=reward.coins||0;else if(!list.includes(track+':'+num)||old.has(track+':'+num))duplicates+=Math.max(0,(reward.coins||0)-(120+n*10));}
+ }
+ for(const [key,list] of Object.entries(local.trophyClaims||{})){const old=new Set(base.trophyClaims?.[key]||[]),other=new Set(remote.trophyClaims?.[key]||[]);for(const at of list)if(!old.has(at)&&other.has(at))duplicates+=TROPHY_ROAD.find(r=>r.at===at)?.coins||0}
+ for(const [key,value] of Object.entries(local.questCoinLedger||{}))duplicates+=Math.max(0,Math.min(Number(value)||0,Number(remote.questCoinLedger?.[key])||0)-(Number(base.questCoinLedger?.[key])||0));
+ return duplicates;
+}
+function mergeFullSave(base,local,remote,importing=false){
+ const out={};
+ for(const key of FULL_SAVE_FIELDS){
+  if(key==='coins')continue;
+  if(['gun','map','skin','pet','equippedTitle'].includes(key)){out[key]=!importing&&JSON.stringify(local[key])!==JSON.stringify(base[key])?local[key]:(remote[key]??local[key]);continue}
+  if(key==='dailySpin'){out[key]=[local[key]||'',remote[key]||''].sort().pop();continue}
+  if(key==='highScores'){out[key]=bestRuns([...(local[key]||[]),...(remote[key]||[])]).slice(0,30);continue}
+  out[key]=fullMergeValue(local[key],remote[key]);
+ }
+ const localCoins=Number(local.coins)||0,remoteCoins=Number(remote.coins)||0;
+ out.coins=Math.max(0,importing?Math.max(localCoins,remoteCoins):remoteCoins+localCoins-(Number(base.coins)||0)-duplicateRewardCoins(base,local,remote));
+ return JSON.parse(JSON.stringify(out));
+}
+function freshDeviceSave(){return {coins:0,guns:{pistol:1},maps:{neon:1},pets:{none:1},skins:{standard:1},gunLevels:{},petLevels:{},gun:'pistol',map:'neon',pet:'none',skin:'standard',best:0,dailySpin:'',highScores:[],rankPoints:{},rankHistory:{}}}
+function prepareFullAccount(uid){
+ const owner=localStorage.getItem('rift_full_owner')||petCloudOwner||'';
+ if(owner!==uid){let cached=null;try{cached=JSON.parse(localStorage.getItem('rift_full_backup_'+uid)||'null')}catch(e){}if(owner||cached){localStorage.setItem('rift_full_backup_'+(owner||'guest'),JSON.stringify(save));save=cached||freshDeviceSave();petCloudOwner=uid;localStorage.setItem(PET_OWNER_STORAGE,uid);}}
+ if(!owner&&save.trophyClaims?.guest){save.trophyClaims[uid]=fullMergeValue(save.trophyClaims[uid]||[],save.trophyClaims.guest);delete save.trophyClaims.guest;}
+ localStorage.setItem('rift_full_owner',uid);fullSyncReady=true;fullSyncOk=false;
+}
+function scheduleFullSync(){if(!fullSyncReady||fullSyncApplying||!accountSession||fullSyncTimer)return;fullSyncTimer=setTimeout(()=>{fullSyncTimer=0;syncFullSave()},1500)}
+async function syncFullSave(){
+ if(!accountSession||!account)return {ok:false,reason:'Sign in to sync progress'};
+ if(fullSyncBusy)return fullSyncBusy;
+ const uid=account.id;
+ fullSyncBusy=(async()=>{try{
+  let meta=fullMeta(uid);
+  for(let attempt=0;attempt<4;attempt++){
+   if(account?.id!==uid)throw Error('Account changed during sync');
+   if(!meta.pending){
+    const remote=await accountDb('rpc/raider_sync_game_save',{method:'POST',body:JSON.stringify({p_expected:-1,p_state:{},p_operation:null})});
+    const snapshot=fullSnapshot(),merged=mergeFullSave(meta.base||{},snapshot,remote.state||{},!meta.base);
+    if(meta.base&&JSON.stringify(merged)===JSON.stringify(remote.state)&&JSON.stringify(snapshot)===JSON.stringify(remote.state)){fullSyncOk=true;return {ok:true}}
+    meta.pending={p_expected:remote.revision,p_state:merged,p_operation:crypto.randomUUID(),snapshot};fullStoreMeta(uid,meta);
+   }
+   const pending=meta.pending;
+   const response=await accountDb('rpc/raider_sync_game_save',{method:'POST',body:JSON.stringify({p_expected:pending.p_expected,p_state:pending.p_state,p_operation:pending.p_operation})});
+   if(account?.id!==uid)throw Error('Account changed during sync');
+   if(!response.ok){delete meta.pending;fullStoreMeta(uid,meta);continue}
+   const live=fullSnapshot(),next=mergeFullSave(pending.snapshot,live,response.state,false);
+   meta.base=response.state;delete meta.pending;fullStoreMeta(uid,meta);
+   fullSyncApplying=true;for(const key of FULL_SAVE_FIELDS)if(next[key]!==undefined)save[key]=next[key];persist();fullSyncApplying=false;
+   fullSyncOk=true;
+   const status=$('rankSyncStatus');if(status)status.textContent='☁️ Account progress synced';
+   if(JSON.stringify(next)!==JSON.stringify(response.state))scheduleFullSync();
+   return {ok:true};
+  }
+  throw Error('Another device is saving. Sync will retry.');
+ }catch(e){fullSyncOk=false;return {ok:false,reason:e.message}}finally{fullSyncApplying=false;fullSyncBusy=null}
+ })();return fullSyncBusy;
+}
+async function syncEverything(){
+ if(!account)await loadAccount();
+ const [progress,pets,rank]=await Promise.all([syncFullSave(),syncPetInventory(),syncRank()]);
+ const trophies=await syncTrophies();
+ return {ok:progress.ok&&pets.ok&&rank.ok&&trophies?.ok,reason:progress.reason||pets.reason||rank.reason||trophies?.reason};
+}
+setInterval(()=>{if(accountSession){if(fullSyncReady){syncFullSave();syncPetInventory();syncTrophies()}else syncEverything().catch(()=>{})}},15000);
+document.addEventListener('visibilitychange',()=>{if(accountSession){persist();syncEverything().catch(()=>{})}});
+addEventListener('online',()=>{if(accountSession)syncEverything().catch(()=>{})});
+addEventListener('focus',()=>{if(accountSession)syncEverything().catch(()=>{})});
+
 async function loadAccount(){let token=await accountToken();if(!token){account=null;return null}let user=await authRequest('/auth/v1/user',{headers:authHeaders(token)});let rows=await accountDb('raider_profiles?select=user_id,display_name&user_id=eq.'+encodeURIComponent(user.id));let profile=rows&&rows[0];if(!profile){let name=String(save.pendingAccountName||playerName()||'').trim();if(!/^[a-zA-Z0-9_ -]{2,18}$/.test(name))throw Error('Choose a 2–18 character raider name in your account');await accountDb('raider_profiles?on_conflict=user_id',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:JSON.stringify({user_id:user.id,display_name:name})});profile={user_id:user.id,display_name:name}}
-account={id:user.id,email:user.email,name:profile.display_name};if(playerName()!==account.name){save.playerName=account.name;net.name=account.name;persist()}delete save.pendingAccountName;persist();const petSync=await syncPetInventory();accountPetSyncOk=petSync.ok;if(!petSync.ok)console.warn('Pet inventory sync:',petSync.reason);return account}
-async function accountSignOut(){let token=await accountToken();if(token)authRequest('/auth/v1/logout',{method:'POST',headers:authHeaders(token)}).catch(()=>{});setAccountSession(null);account=null}
+prepareFullAccount(user.id);account={id:user.id,email:user.email,name:profile.display_name};if(playerName()!==account.name){save.playerName=account.name;net.name=account.name;persist()}delete save.pendingAccountName;persist();const petSync=await syncPetInventory();accountPetSyncOk=petSync.ok;if(!petSync.ok)console.warn('Pet inventory sync:',petSync.reason);await syncFullSave();return account}
+async function accountSignOut(){await syncFullSave();if(account){localStorage.setItem('rift_full_backup_'+account.id,JSON.stringify(save))}fullSyncReady=false;let token=await accountToken();if(token)authRequest('/auth/v1/logout',{method:'POST',headers:authHeaders(token)}).catch(()=>{});setAccountSession(null);account=null;save=freshDeviceSave();localStorage.removeItem('rift_full_owner');petCloudOwner='';localStorage.removeItem(PET_OWNER_STORAGE);persist()}
 async function syncRank(push=false){
  if(!accountSession)return {ok:false,reason:'Sign in to protect your rank'};
  if(rankSyncing){if(push){await rankSyncing;return syncRank(true)}return rankSyncing}
@@ -729,11 +836,11 @@ $('confirmNewPassword').onclick=async()=>{let password=$('newAccountPassword').v
 $('recoveryBack').onclick=()=>{mode='menu';card.style.maxWidth='1100px';renderShop()}}
 function accountScreen(){
 mode='account';menu.style.display='flex';card.style.maxWidth='560px';
-card.innerHTML='<h1>👤 RAIDER ACCOUNTS</h1><p>Sign in with the same account on your laptop and phone to sync your pets and ranked progress. Use a real email so you can confirm and recover your account.</p><p id="accountStatus" style="color:#ffe39c"></p><div id="accountPanel"></div><button id="accountBack">⬅ BACK TO SHOPS</button>';
+card.innerHTML='<h1>👤 RAIDER ACCOUNTS</h1><p>Sign in with the same account on your laptop and phone to sync your coins, gear, upgrades, rewards and progress. Use a real email so you can confirm and recover your account.</p><p id="accountStatus" style="color:#ffe39c"></p><div id="accountPanel"></div><button id="accountBack">⬅ BACK TO SHOPS</button>';
 $('accountBack').onclick=()=>{mode='menu';card.style.maxWidth='1100px';renderShop()};
 const panel=$('accountPanel'),status=$('accountStatus');
-if(account){panel.innerHTML='<h2>✅ '+safeText(account.name)+'</h2><p>📧 '+safeText(account.email||'')+'</p><p>🏅 '+rankProgress(account.name)+'</p><p>🐾 Pet collection syncs across devices.</p><button id="accountSync">☁️ SYNC PETS & RANK</button> <button id="accountLogout">SIGN OUT</button>';
-$('accountSync').onclick=async()=>{status.textContent='Syncing pets and rank...';let [v,pets]=await Promise.all([syncRank(),syncPetInventory()]);status.textContent=v.ok&&pets.ok?'Pets and rank are synced to this account.':('Could not sync: '+(pets.reason||v.reason||'Try again'))};
+if(account){panel.innerHTML='<h2>✅ '+safeText(account.name)+'</h2><p>📧 '+safeText(account.email||'')+'</p><p>🏅 '+rankProgress(account.name)+'</p><p>🐾 Coins, gear, upgrades, rewards and progress sync across devices.</p><button id="accountSync">☁️ SYNC EVERYTHING</button> <button id="accountLogout">SIGN OUT</button>';
+$('accountSync').onclick=async()=>{status.textContent='Syncing account progress...';let v=await syncEverything();status.textContent=v.ok?'Your account progress is synced across devices.':('Could not sync: '+(v.reason||'Try again'))};
 $('accountLogout').onclick=async()=>{await accountSignOut();status.textContent='Signed out';accountScreen()};return}
 panel.innerHTML='<p><input id="accountEmail" type="email" autocomplete="email" placeholder="Email address" maxlength="120"></p><p><input id="accountPassword" type="password" autocomplete="current-password" placeholder="Password (at least 8 characters)" minlength="8"></p><p><input id="accountName" maxlength="18" placeholder="Raider name for new accounts" value="'+safeText(playerName())+'"></p><button id="accountLogin">🔐 SIGN IN</button> <button id="accountSignup">✨ CREATE ACCOUNT</button> <button id="accountRecover">✉️ RESET PASSWORD</button> <button id="accountResend">📨 RESEND CONFIRMATION</button><p>Already registered? Use SIGN IN. If email sending is limited, please wait instead of repeatedly creating an account.</p>';
 const submit=async signup=>{let email=$('accountEmail').value.trim(),password=$('accountPassword').value,name=$('accountName').value.trim();if(signup&&Date.now()<Number(localStorage.getItem('rift_signup_cooldown')||0)){status.textContent='Please wait before trying again. If you already registered, use SIGN IN or RESEND CONFIRMATION.';return}if(!email||password.length<8){status.textContent='Enter a valid email and password of at least 8 characters';return}if(signup&&!/^[a-zA-Z0-9_ -]{2,18}$/.test(name)){status.textContent='Raider name must be 2–18 letters, numbers, spaces, - or _';return}
@@ -1165,13 +1272,13 @@ function trackTrophies(){
  if(completed>run.completed){run.completed=completed;persist();message('🏆 +5 TROPHIES PER WAVE · '+trophyTotal()+' TOTAL');syncTrophies()}
 }
 async function syncTrophies(){
- if(!accountSession)return;if(trophySyncing)return trophySyncing;
+ if(!accountSession)return {ok:false,reason:'Sign in to sync trophies'};if(trophySyncing)return trophySyncing;
  trophySyncing=(async()=>{if(!account)await loadAccount();const uid=account.id;
  for(const [id,r] of Object.entries(trophyRuns())){if(r.owner==='guest')r.owner=uid;if(r.owner!==uid||r.completed<1)continue;await accountDb('rpc/raider_save_trophy_run',{method:'POST',body:JSON.stringify({p_run_id:id,p_completed:r.completed})})}
  const rows=await accountDb('raider_trophy_runs?select=run_id,completed_waves&user_id=eq.'+uid);
  for(const r of rows){const old=trophyRuns()[r.run_id];trophyRuns()[r.run_id]={owner:uid,completed:Math.max(old?.completed||0,r.completed_waves)}}
- persist();trophySyncAt=Date.now();
- })().catch(e=>console.warn('Trophy sync:',e.message)).finally(()=>trophySyncing=null);return trophySyncing;
+ persist();trophySyncAt=Date.now();return {ok:true};
+ })().catch(e=>{console.warn('Trophy sync:',e.message);return {ok:false,reason:e.message}}).finally(()=>trophySyncing=null);return trophySyncing;
 }
 function trophyRewardLabel(r){return r.coins?'🪙 '+r.coins.toLocaleString()+' COINS':r.gun?'🔫 '+GUNS[r.gun][0]:'🎭 '+SKINS[r.skin][0]}
 async function trophyRoadScreen(){
@@ -1222,7 +1329,7 @@ const shopScrollTop=card.scrollTop;
 card.style.maxWidth='1100px';card.innerHTML=shopView();
 const refreshedArmory=card.querySelector('.arenaArmory');
 if(refreshedArmory)refreshedArmory.open=armoryOpen;
-card.scrollTop=shopScrollTop;if(accountSession){touchRaiderPresence();checkScreenInvites()}if(accountSession){const lobby=card.querySelector('.arenaLobby');if(lobby){lobby.insertAdjacentHTML('afterbegin','<div id="lobbyRoomInvites" style="display:none;background:#123b59;border:2px solid #62d4af;border-radius:12px;padding:7px;margin:4px 0"></div>');renderLobbyRoomInvites()}}$('accountBtn').onclick=accountScreen;$('profileBtn').onclick=()=>profilesScreen();$('questsBtn').onclick=questsScreen;$('friendsBtn').onclick=friendsScreen;$('achievementsBtn').onclick=achievementsScreen;$('battlePassBtn').onclick=battlePassScreen;$('trophyRoadBtn').onclick=trophyRoadScreen;const bundle=$('omegaBundle');if(bundle)bundle.onclick=buyOmegaBundle;if(accountSession&&Date.now()-trophySyncAt>30000)syncTrophies();if(accountSession)syncRank().then(v=>{let el=$('rankSyncStatus');if(el)el.textContent=v.ok&&accountPetSyncOk?'☁️ Pets & rank synced across devices':v.ok?'⚠️ Rank synced; pet sync will retry':'⚠️ '+(v.reason||'Sign in again to sync');let btn=$('accountBtn');if(btn&&account)btn.textContent='👤 MY ACCOUNT';});else{let el=$('rankSyncStatus');if(el)el.textContent='🔐 Sign in on both devices to sync pets and rank';}$('shareGame').onclick=()=>{prompt('Send this link to your friends:',location.origin)};$('changePlayerName').onclick=()=>{if(account){accountScreen();return}let name=prompt('Choose your leaderboard name (max 18 characters):',playerName());if(name!==null&&savePlayerName(name))renderShop(resumeRun)};let outcome=$('dailyResult');if(outcome&&result&&result.startsWith('🎰'))outcome.textContent=result;
+card.scrollTop=shopScrollTop;if(accountSession){touchRaiderPresence();checkScreenInvites()}if(accountSession){const lobby=card.querySelector('.arenaLobby');if(lobby){lobby.insertAdjacentHTML('afterbegin','<div id="lobbyRoomInvites" style="display:none;background:#123b59;border:2px solid #62d4af;border-radius:12px;padding:7px;margin:4px 0"></div>');renderLobbyRoomInvites()}}$('accountBtn').onclick=accountScreen;$('profileBtn').onclick=()=>profilesScreen();$('questsBtn').onclick=questsScreen;$('friendsBtn').onclick=friendsScreen;$('achievementsBtn').onclick=achievementsScreen;$('battlePassBtn').onclick=battlePassScreen;$('trophyRoadBtn').onclick=trophyRoadScreen;const bundle=$('omegaBundle');if(bundle)bundle.onclick=buyOmegaBundle;if(accountSession&&Date.now()-trophySyncAt>30000)syncTrophies();if(accountSession)syncRank().then(v=>{let el=$('rankSyncStatus');if(el)el.textContent=v.ok&&accountPetSyncOk&&fullSyncOk?'☁️ Account progress synced across devices':v.ok?'⚠️ Rank synced; account sync will retry':'⚠️ '+(v.reason||'Sign in again to sync');let btn=$('accountBtn');if(btn&&account)btn.textContent='👤 MY ACCOUNT';});else{let el=$('rankSyncStatus');if(el)el.textContent='🔐 Sign in on both devices to sync everything';}$('shareGame').onclick=()=>{prompt('Send this link to your friends:',location.origin)};$('changePlayerName').onclick=()=>{if(account){accountScreen();return}let name=prompt('Choose your leaderboard name (max 18 characters):',playerName());if(name!==null&&savePlayerName(name))renderShop(resumeRun)};let outcome=$('dailyResult');if(outcome&&result&&result.startsWith('🎰'))outcome.textContent=result;
 let daily=$('dailySpin');if(daily)daily.onclick=()=>{
  const today=new Date().toISOString().slice(0,10);if(save.dailySpin===today)return;
  save.dailySpin=today;persist(); // Reserve today's spin before animating to prevent duplicate rewards.
@@ -1630,3 +1737,4 @@ $('shopBtn').onclick=()=>{if(net.active&&(mode==='play'||upgradeOpen)){message('
 const recoveryHash=new URLSearchParams(location.hash.slice(1));if(recoveryHash.get('type')==='recovery'&&recoveryHash.get('access_token')){let token=recoveryHash.get('access_token');history.replaceState(null,'',location.pathname+location.search);accountRecoveryScreen(token)}else chooseDevice(()=>{if(!playerName())choosePlayerName(()=>renderShop());else{net.name=playerName();renderShop()}draw()});
 })();
 </script><script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))}</script></body></html>
+
