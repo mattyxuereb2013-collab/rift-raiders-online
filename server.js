@@ -34,10 +34,10 @@ async function dbCall(endpoint,options={}){
 }
 function jsonResponse(res,status,value){res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(value))}
 
-function send(c,obj){if(!c||c.dead||c.socket.destroyed)return;try{let data=Buffer.from(JSON.stringify(obj));if(data.length>65535)return;let h=data.length<126?Buffer.from([0x81,data.length]):Buffer.from([0x81,126,data.length>>8,data.length&255]);c.socket.write(Buffer.concat([h,data]))}catch(e){closeClient(c)}}
+function send(c,obj){if(!c||c.dead||c.socket.destroyed)return;if(c.socket.writableLength>65536&&['world','state','fx'].includes(obj.t))return;try{let data=Buffer.from(JSON.stringify(obj));if(data.length>65535)return;let h=data.length<126?Buffer.from([0x81,data.length]):Buffer.from([0x81,126,data.length>>8,data.length&255]);c.socket.write(Buffer.concat([h,data]))}catch(e){closeClient(c)}}
 function broadcast(room,msg,except){for(let c of room.players)if(c!==except)send(c,msg)}
 function roomFor(c){return c.room?rooms.get(c.room):null}
-const ALLOWED_SKILLS=new Set(['nuke','back','drones','orb','cutter','freeze','heal','lightning','shield','blackhole','rocket','meteor','flame','boomerang','explosive','pulse','haste']);
+const ALLOWED_SKILLS=new Set(['nuke','back','drones','orb','cutter','freeze','heal','lightning','shield','blackhole','rocket','meteor','flame','boomerang','explosive','pulse','haste','laserlance','frostburst','starbarrage']);
 function cleanSkills(input){
  const out={};
  if(!input||typeof input!=='object'||Array.isArray(input))return out;
@@ -334,6 +334,7 @@ const server=http.createServer((req,res)=>{
  res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});fs.createReadStream(path.join(__dirname,'index.html')).pipe(res)
 });
 server.on('upgrade',(req,socket)=>{
+ socket.setNoDelay(true);
  if(req.url!=='/ws'&&req.url!=='/'){socket.destroy();return}
  let key=req.headers['sec-websocket-key'];if(!key||typeof key!=='string'||!/^[-A-Za-z0-9+/=]{20,32}$/.test(key)){socket.destroy();return}
  const accept=crypto.createHash('sha1').update(key+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
@@ -342,4 +343,5 @@ server.on('upgrade',(req,socket)=>{
  clients.add(c);socket.on('data',d=>decodeFrames(c,d));socket.on('error',()=>closeClient(c));socket.on('close',()=>closeClient(c));
 });
 server.listen(PORT,HOST,()=>console.log('RIFT RAIDERS online lobby server: http://localhost:'+PORT+' | players 2–4 | private password lobbies'));
+
 
