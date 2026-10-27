@@ -34,7 +34,7 @@ async function dbCall(endpoint,options={}){
 }
 function jsonResponse(res,status,value){res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(value))}
 
-function send(c,obj){if(!c||c.dead||c.socket.destroyed)return;try{let data=Buffer.from(JSON.stringify(obj));if(data.length>65535)return;let h=data.length<126?Buffer.from([0x81,data.length]):Buffer.from([0x81,126,data.length>>8,data.length&255]);c.socket.write(Buffer.concat([h,data]))}catch(e){closeClient(c)}}
+function send(c,obj){if(!c||c.dead||c.socket.destroyed)return;try{let data=Buffer.from(JSON.stringify(obj));if(data.length>65535)return;if(c.socket.writableLength>256*1024&&['world','state'].includes(obj.t))return;let h=data.length<126?Buffer.from([0x81,data.length]):Buffer.from([0x81,126,data.length>>8,data.length&255]);c.socket.write(Buffer.concat([h,data]))}catch(e){closeClient(c)}}
 function broadcast(room,msg,except){for(let c of room.players)if(c!==except)send(c,msg)}
 function roomFor(c){return c.room?rooms.get(c.room):null}
 const ALLOWED_SKILLS=new Set(['nuke','back','drones','orb','cutter','freeze','heal','lightning','shield','blackhole','rocket','meteor','flame','boomerang','explosive']);
@@ -326,6 +326,6 @@ server.on('upgrade',(req,socket)=>{
  const accept=crypto.createHash('sha1').update(key+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
  socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+accept+'\r\n\r\n');
  let c={id:crypto.randomBytes(8).toString('hex'),socket,room:null,name:'Raider',dead:false,buf:Buffer.alloc(0),fragmented:null};
- clients.add(c);socket.on('data',d=>decodeFrames(c,d));socket.on('error',()=>closeClient(c));socket.on('close',()=>closeClient(c));
+ clients.add(c);socket.setNoDelay(true);socket.on('data',d=>decodeFrames(c,d));socket.on('error',()=>closeClient(c));socket.on('close',()=>closeClient(c));
 });
 server.listen(PORT,HOST,()=>console.log('RIFT RAIDERS online lobby server: http://localhost:'+PORT+' | players 2–4 | private password lobbies'));
