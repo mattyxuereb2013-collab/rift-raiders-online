@@ -146,6 +146,33 @@ header h1{letter-spacing:.055em;font-size:clamp(23px,4vw,36px);font-weight:800;t
 .castle-hp-labels{display:flex;justify-content:space-between;margin:8px 0;color:#eef4fe;font-size:13px;font-weight:800}
 .castle-hp-labels .ally{color:#7bc9ff}.castle-hp-labels .enemy{color:#ffb5b5}
 @media(max-width:760px){.kingdom-village{grid-template-columns:1fr}.village-scene{height:300px}.team-board{grid-template-columns:1fr}.village-castle{left:34%}}
+
+/* v2.5 Village editor + Skeleton King boss */
+.village-cell-grid{position:absolute;inset:0;z-index:15;pointer-events:none}
+.village-cell{position:absolute;width:12%;height:16%;transform:translate(-50%,-50%);background:#a9eaff35;border:2px dashed #d3f6ff8c;border-radius:12px;color:#fff;cursor:pointer;pointer-events:auto;touch-action:manipulation;box-shadow:inset 0 0 12px #b0dfff2a}
+.village-cell:hover,.village-cell:focus-visible{background:#ffe6a658;border-color:#ffeec2;outline:none}
+.village-cell.occupied{background:#192d4d66;border-color:#637f9e}.village-cell.selected{background:#ffca6a66;border-color:#ffe3ad}
+.village-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.village-picker button{border-radius:10px;border:1px solid #587a9b;background:#1c344f;color:#dceaff;padding:9px 5px;font-weight:700;cursor:pointer;touch-action:manipulation}.village-picker button.selected{border-color:#ffda87;background:#5e4b30;color:#fff1d2}
+.village-scene.editing{outline:3px solid #e3c26a}
+.village-building{transition:left .35s ease,top .35s ease,transform .35s ease}
+.village-edit-banner{font-size:12px;color:#ffdfa6}
+.boss-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(200px,.8fr);gap:14px}
+.boss-stage{height:260px;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 30%,#69486c,#2d2848 53%,#111d30 100%);border-radius:18px;border:2px solid #9555b3;overflow:hidden;box-shadow:inset 0 0 28px #0006}
+.boss-stage:after{content:"";position:absolute;bottom:0;left:0;right:0;height:22%;background:linear-gradient(#564459,#241d2f);clip-path:polygon(0 60%,100% 0,100% 100%,0 100%)}
+.boss-title{z-index:2;color:#ffda9f;font-size:12px;font-weight:900;letter-spacing:.14em;margin-bottom:14px}
+.boss-figure{position:relative;width:95px;height:145px;z-index:3;filter:drop-shadow(0 8px 9px #000a);animation:bossFloat 1.2s ease-in-out infinite alternate}
+.boss-head{position:absolute;width:63px;height:57px;top:12px;left:16px;border-radius:38% 38% 48% 48%;border:3px solid #a8aabe;background:linear-gradient(#f0eded,#afaebd);box-shadow:inset -10px -6px #0002}
+.boss-head i{position:absolute;top:19px;width:14px;height:15px;background:#f13f6e;border-radius:50%;box-shadow:0 0 12px #f64567}.boss-head i:first-child{left:9px}.boss-head i:last-child{right:9px}
+.boss-crown{position:absolute;top:0;left:21px;width:54px;height:25px;background:#efd479;clip-path:polygon(0 0,25% 50%,50% 0,75% 50%,100% 0,95% 100%,5% 100%);z-index:2}
+.boss-body{position:absolute;left:23px;top:66px;width:49px;height:72px;border-radius:15px 15px 5px 5px;background:linear-gradient(125deg,#9e82d6,#392956);border:3px solid #b6a0df}
+.boss-sword{position:absolute;left:80px;top:31px;width:7px;height:108px;background:linear-gradient(#f3d5fd,#937dbb);transform:rotate(20deg);border:1px solid #e6d0fb}
+.boss-health{z-index:2;width:78%;height:14px;margin-top:2px;background:#241b30;border-radius:10px;overflow:hidden;border:1px solid #ab739c}.boss-health span{display:block;height:100%;width:100%;background:linear-gradient(90deg,#f03e7c,#ff99ae);transition:width .35s}
+#bossHealthLabel{z-index:2;font-size:12px;color:#ffe2e4;padding:5px}
+.boss-panel{background:#101e32;border:1px solid #465679;border-radius:18px;padding:15px}.boss-panel p{color:#d0deeb}.boss-panel .btn{width:100%}
+.boss-stage.hit .boss-figure{filter:drop-shadow(0 0 25px #ff9696);animation:bossHit .2s infinite alternate}
+@keyframes bossFloat{to{transform:translateY(-9px)}}@keyframes bossHit{to{transform:translateX(10px) rotate(-4deg)}}
+@media(max-width:620px){.boss-grid{grid-template-columns:1fr}.village-picker{grid-template-columns:repeat(2,1fr)}.village-cell{width:15%;height:17%}}
+@media(prefers-reduced-motion:reduce){.boss-figure{animation:none!important}}
 </style></head><body>
 <header><div class="brand-crest">♛</div><h1>CONQUER THE EMPIRES</h1><div class="sub">GOLD RUSH · V1.9</div><p id="connection" class="pill">🔌 Connecting…</p></header>
 <nav id="gameNav" class="game-nav hidden" aria-label="Game sections">
@@ -167,12 +194,14 @@ header h1{letter-spacing:.055em;font-size:clamp(23px,4vw,36px);font-weight:800;t
 <div class="armycard common"><h3>⛏️ Collect Gold Mine</h3><p class="sub">Collect passive coins. Upgrade your mine in Kingdom to earn faster.</p><p id="mineinfo" class="sub">Checking production…</p><button id="claimmine" class="btn">🪙 Collect mine gold</button></div>
 <div class="armycard rare"><h3>🐎 Raid NPC Caravan</h3><p class="sub">Fight a practice caravan for 150–400 coins every five minutes. Requires at least 15 army strength.</p><p id="caravaninfo" class="sub">Checking caravan…</p><button id="raidcaravan" class="btn secondary">⚔️ Raid caravan</button></div>
 <div class="armycard common"><h3>🎁 Other Free Coins</h3><p class="sub">Daily gift: 750 coins. Tutorial outpost: 600 once. Four achievements: up to 5,700 coins. Victory over online rivals may reward coins.</p><button class="btn secondary" id="goRewards">🎁 Go to rewards</button></div>
-</div><p id="coinresult" role="status" class="sub"></p></section><section class="panel"><h2>🗺️ World conquest</h2><p class="sub">Choose a castle to inspect its ruler. Green tiles are wilderness; occupied castles represent real player kingdoms.</p><div class="map-legend"><span>👑 Your kingdom</span><span>🏰 Rival castle</span><span>🌲 Forest</span><span>⛰️ Mountains</span><span>🌊 River</span></div><div id="worldmap" class="world" aria-label="World map"></div><div id="targetinfo" class="panel muted">Select an enemy castle on the map.</div><div class="prebattle-panel"><strong>🃏 Your battle deck</strong><p class="sub">Choose four army/hero cards before attacking. Your deck is saved online and affects server battle power.</p><div id="battleDeckPreview"></div><button class="btn secondary" id="editDeckBeforeFight">🛡️ Choose battle deck</button></div><div id="battlefield" class="battlefield hidden"><h3>⚔️ BATTLE ANIMATION</h3><div id="warstatus" class="war-status"><span>Your troops</span><span>Enemy troops</span></div><div class="war-status"><div class="war-health"><i id="yourhp"></i></div><div class="war-health enemy"><i id="enemyhp"></i></div></div><div class="team-board"><div class="ally"><strong>🔵 YOUR TEAM</strong><small id="pvpAllyName">Your kingdom</small></div><div class="enemy"><strong>🔴 ENEMY TEAM</strong><small id="pvpEnemyName">Rival kingdom</small></div></div><div id="warstage" class="war-stage arena"><span class="arena-tower left">🏰</span><span class="arena-tower right">🏯</span><div id="yourarmy" class="war-army left"></div><div id="enemyarmy" class="war-army right"></div></div><div class="castle-hp-labels"><span class="ally">Your castle <b id="pvpAllyHp">100%</b></span><span class="enemy">Enemy castle <b id="pvpEnemyHp">100%</b></span></div><p id="battletext" style="text-align:center" aria-live="polite"></p><p id="battleSkillBanner" class="battle-skill-banner" aria-live="polite"></p><div id="arenaCards"></div></div></section><section class="panel"><h2>🃏 Conqueror & Army — Battle Deck</h2><p class="sub">Choose exactly 4 cards before fighting: troops and heroes you own. Save to your kingdom online. Your saved cards add up to 150 bonus power in server-verified battles. Heroes show their skills in the arena animation. Players more than 50,000 kingdom power apart cannot attack each other.</p><div id="deckGrid" class="deck-grid"></div><p id="deckSummary">Choose four cards for your army.</p><button id="saveBattleDeck" class="btn">💾 Save battle deck</button><p id="deckStatus" class="sub" role="status"></p></section><section class="panel"><h2>🎴 Army battle cards</h2><p class="sub">Start with one Basic swordsman and 10,000 coins. Recruit troops to strengthen your kingdom. Army tiers are visual previews; server combat currently uses base troop stats.</p><div id="armycards" class="cardrow"></div><button class="btn" data-action="army_pack" disabled title="Server feature coming soon">🎁 Open army card pack · 300 🪙</button><p id="cardresult" class="sub"></p></section><div class="grid"><section class="panel"><h2>⚔️ Battles</h2><p class="sub">Online battles are server-verified. Server-authoritative PvP is enabled. Attack online unshielded rivals.</p><button class="btn" id="tutorial">🏕️ Conquer tutorial outpost · +5 ⚡ +600 🪙</button><p id="outpoststatus" class="sub" role="status">Checking your tutorial reward…</p><h3>🌍 Live rival kingdoms</h3><div id="rivals" class="muted">Loading…</div></section><section class="panel"><h2>🏹 Army barracks</h2><p id="troops" class="muted"></p><button class="btn secondary" data-action="swords">🗡️ Recruit swordsman · 35 🪙</button><button class="btn secondary" data-action="archers">🏹 Recruit archer · 75 🪙</button><button class="btn secondary" data-action="cavalry">🐎 Recruit cavalry · 160 🪙</button></section><section class="panel"><h2>📈 Power & training</h2><p class="muted">Keep your production rate after defeat. Train with conqueror rarity cards to increase levels.</p><button class="btn" data-action="upgrade">⚡ Upgrade +0.50 power/min · <span id="upgradecost">100</span> 🪙</button><button class="btn secondary" id="trainConqueror">👑 Upgrade Conqueror · <span id="traincost">130</span> 🪙</button><p class="sub" id="trainStatus">Gain +1 Conqueror level, +10 kingdom power, and +0.02 power/min. No card required.</p><p class="sub" id="skills"></p></section><section class="panel"><h2>🎴 Royal market</h2><p class="muted">Buy packs with earned coins. Rarity affects training bonuses.</p><button class="btn" id="conquerorPackBtn">🎁 Open Conqueror Pack · 5,000 🪙</button><p id="conquerorPackResult" class="sub" role="status">Contains 1–3 Conqueror cards. You can also unlock higher Conqueror rarity. The highest rarity you find is permanently saved.</p><p class="sub">Drop rates: Common 58% · Uncommon 24% · Rare 11% · Epic 4.7% · Legendary 1.6% · Mythic 0.6% · Ultra 0.1%</p><button class="btn secondary" id="buyshield">🛡️ Buy 24h shield · +1,000 defense · 5,000 🪙</button><p class="sub">Shields last 24 hours per purchase, stacking duration and defense. Rivals cannot attack while shielded.</p><p id="shieldpurchase" class="sub" role="status"></p></section></div>
+</div><p id="coinresult" role="status" class="sub"></p></section><section class="panel"><h2>💀 Skeleton King Boss Raid</h2>
+<p class="sub">Battle a growing NPC boss for real coins and kingdom power. The boss gets stronger after each victory; each raid has a 10-minute cooldown. Server rules determine rewards.</p>
+<div class="boss-grid"><div class="boss-stage"><div class="boss-title">THE SKELETON KING</div><div class="boss-figure"><span class="boss-crown"></span><span class="boss-head"><i></i><i></i></span><span class="boss-body"></span><span class="boss-sword"></span></div><div class="boss-health"><span id="bossHealth"></span></div><strong id="bossHealthLabel">100% HP</strong></div><div class="boss-panel"><p id="bossStatus">Loading boss raid…</p><p id="bossPower">Boss strength: —</p><p id="bossRecord">Victories: —</p><button id="bossFight" class="btn">⚔️ Fight the Skeleton King</button><p id="bossResult" class="sub" role="status"></p></div></div></section><section class="panel"><h2>🗺️ World conquest</h2><p class="sub">Choose a castle to inspect its ruler. Green tiles are wilderness; occupied castles represent real player kingdoms.</p><div class="map-legend"><span>👑 Your kingdom</span><span>🏰 Rival castle</span><span>🌲 Forest</span><span>⛰️ Mountains</span><span>🌊 River</span></div><div id="worldmap" class="world" aria-label="World map"></div><div id="targetinfo" class="panel muted">Select an enemy castle on the map.</div><div class="prebattle-panel"><strong>🃏 Your battle deck</strong><p class="sub">Choose four army/hero cards before attacking. Your deck is saved online and affects server battle power.</p><div id="battleDeckPreview"></div><button class="btn secondary" id="editDeckBeforeFight">🛡️ Choose battle deck</button></div><div id="battlefield" class="battlefield hidden"><h3>⚔️ BATTLE ANIMATION</h3><div id="warstatus" class="war-status"><span>Your troops</span><span>Enemy troops</span></div><div class="war-status"><div class="war-health"><i id="yourhp"></i></div><div class="war-health enemy"><i id="enemyhp"></i></div></div><div class="team-board"><div class="ally"><strong>🔵 YOUR TEAM</strong><small id="pvpAllyName">Your kingdom</small></div><div class="enemy"><strong>🔴 ENEMY TEAM</strong><small id="pvpEnemyName">Rival kingdom</small></div></div><div id="warstage" class="war-stage arena"><span class="arena-tower left">🏰</span><span class="arena-tower right">🏯</span><div id="yourarmy" class="war-army left"></div><div id="enemyarmy" class="war-army right"></div></div><div class="castle-hp-labels"><span class="ally">Your castle <b id="pvpAllyHp">100%</b></span><span class="enemy">Enemy castle <b id="pvpEnemyHp">100%</b></span></div><p id="battletext" style="text-align:center" aria-live="polite"></p><p id="battleSkillBanner" class="battle-skill-banner" aria-live="polite"></p><div id="arenaCards"></div></div></section><section class="panel"><h2>🃏 Conqueror & Army — Battle Deck</h2><p class="sub">Choose exactly 4 cards before fighting: troops and heroes you own. Save to your kingdom online. Your saved cards add up to 150 bonus power in server-verified battles. Heroes show their skills in the arena animation. Players more than 50,000 kingdom power apart cannot attack each other.</p><div id="deckGrid" class="deck-grid"></div><p id="deckSummary">Choose four cards for your army.</p><button id="saveBattleDeck" class="btn">💾 Save battle deck</button><p id="deckStatus" class="sub" role="status"></p></section><section class="panel"><h2>🎴 Army battle cards</h2><p class="sub">Start with one Basic swordsman and 10,000 coins. Recruit troops to strengthen your kingdom. Army tiers are visual previews; server combat currently uses base troop stats.</p><div id="armycards" class="cardrow"></div><button class="btn" data-action="army_pack" disabled title="Server feature coming soon">🎁 Open army card pack · 300 🪙</button><p id="cardresult" class="sub"></p></section><div class="grid"><section class="panel"><h2>⚔️ Battles</h2><p class="sub">Online battles are server-verified. Server-authoritative PvP is enabled. Attack online unshielded rivals.</p><button class="btn" id="tutorial">🏕️ Conquer tutorial outpost · +5 ⚡ +600 🪙</button><p id="outpoststatus" class="sub" role="status">Checking your tutorial reward…</p><h3>🌍 Live rival kingdoms</h3><div id="rivals" class="muted">Loading…</div></section><section class="panel"><h2>🏹 Army barracks</h2><p id="troops" class="muted"></p><button class="btn secondary" data-action="swords">🗡️ Recruit swordsman · 35 🪙</button><button class="btn secondary" data-action="archers">🏹 Recruit archer · 75 🪙</button><button class="btn secondary" data-action="cavalry">🐎 Recruit cavalry · 160 🪙</button></section><section class="panel"><h2>📈 Power & training</h2><p class="muted">Keep your production rate after defeat. Train with conqueror rarity cards to increase levels.</p><button class="btn" data-action="upgrade">⚡ Upgrade +0.50 power/min · <span id="upgradecost">100</span> 🪙</button><button class="btn secondary" id="trainConqueror">👑 Upgrade Conqueror · <span id="traincost">130</span> 🪙</button><p class="sub" id="trainStatus">Gain +1 Conqueror level, +10 kingdom power, and +0.02 power/min. No card required.</p><p class="sub" id="skills"></p></section><section class="panel"><h2>🎴 Royal market</h2><p class="muted">Buy packs with earned coins. Rarity affects training bonuses.</p><button class="btn" id="conquerorPackBtn">🎁 Open Conqueror Pack · 5,000 🪙</button><p id="conquerorPackResult" class="sub" role="status">Contains 1–3 Conqueror cards. You can also unlock higher Conqueror rarity. The highest rarity you find is permanently saved.</p><p class="sub">Drop rates: Common 58% · Uncommon 24% · Rare 11% · Epic 4.7% · Legendary 1.6% · Mythic 0.6% · Ultra 0.1%</p><button class="btn secondary" id="buyshield">🛡️ Buy 24h shield · +1,000 defense · 5,000 🪙</button><p class="sub">Shields last 24 hours per purchase, stacking duration and defense. Rivals cannot attack while shielded.</p><p id="shieldpurchase" class="sub" role="status"></p></section></div>
 <section class="panel"><h2>✨ Conqueror skills</h2><p class="sub">Unlock a skill at levels 20, 40, 60, 80 and 100. Higher rarity means longer cooldowns (maximum 30 seconds). Skill animations are a preview until server-side skill damage is implemented.</p><div id="skillbuttons" class="cardrow"></div><p id="skillmessage" class="sub">Level up to unlock skills.</p></section>
-<section class="panel"><h2>☀️ Daily Kingdom Gift</h2><p class="sub">Claim 750 coins once per UTC day. The server verifies your claim, so reloading or switching devices cannot claim it twice.</p><button id="dailyclaim" class="btn">🎁 Claim 750 free coins</button><p id="dailystatus" class="sub">Checking claim status…</p></section><section class="panel"><h2>🎁 Character boxes</h2><p class="sub">Spend coins on real server-verified character boxes. Rewards are saved to your account. Mythic and Ultra can drop from Mythic boxes.</p><div class="free-box" id="freeboxpanel"><div><strong>✨ Daily Free Summon</strong><p class="sub">One free Wooden Box every UTC day — your character is saved online.</p></div><button class="btn" id="freeboxbtn" type="button">🎁 Claim free character</button><small id="freeboxstatus">Checking your reward…</small></div><div id="characterboxes" class="cardrow"></div><h3>👑 Character collection</h3><div id="charactercollection" class="cardrow"></div><p id="boxresult" class="sub">Open a box to receive a server-selected character.</p></section><section class="panel"><h2>🏰 Your 3D-style Kingdom</h2><p class="sub">This is your kingdom village. Buildings grow as you upgrade them, with the same levels saved on the server.</p><div class="kingdom-village"><div class="village-scene"><div class="village-path"></div><div class="village-building village-castle"><div class="village-roof"></div><div class="village-door"></div><span id="vCastle">Castle</span></div><div class="village-building village-mine"><div class="village-roof"></div><div class="village-door"></div><span id="vMine">Gold Mine</span></div><div class="village-building village-barracks"><div class="village-roof"></div><div class="village-door"></div><span id="vBarracks">Barracks</span></div><div class="village-building village-wall"><div class="village-roof"></div><div class="village-door"></div><span id="vWalls">Walls</span></div><div class="village-tree t1"></div><div class="village-tree t2"></div><div class="village-tree t3"></div></div><div class="village-actions"><strong id="villageName">Your Kingdom</strong><p id="villageStats" class="sub">Loading buildings…</p><button class="btn secondary" id="villageMineUpgrade">⛏️ Upgrade Gold Mine</button><button class="btn secondary" id="villageGoCoins">🪙 Collect Gold</button></div></div></section><section class="panel"><h2>🏗️ Kingdom builder</h2><p class="sub">Gold mines also produce 2 coins per minute per level, collected in the Coins tab. Mines grant +0.25 power/min; walls grant +100 defense. All upgrades save online.</p><div id="buildings" class="cardrow"></div></section><section class="panel"><h2>📜 Daily quests</h2><p class="sub">Complete missions to earn Battle Pass XP. Daily quests and Battle Pass XP save to your online account. Battle Pass levels grant claimable coin rewards.</p><div id="questlist" class="cardrow"></div></section>
+<section class="panel"><h2>☀️ Daily Kingdom Gift</h2><p class="sub">Claim 750 coins once per UTC day. The server verifies your claim, so reloading or switching devices cannot claim it twice.</p><button id="dailyclaim" class="btn">🎁 Claim 750 free coins</button><p id="dailystatus" class="sub">Checking claim status…</p></section><section class="panel"><h2>🎁 Character boxes</h2><p class="sub">Spend coins on real server-verified character boxes. Rewards are saved to your account. Mythic and Ultra can drop from Mythic boxes.</p><div class="free-box" id="freeboxpanel"><div><strong>✨ Daily Free Summon</strong><p class="sub">One free Wooden Box every UTC day — your character is saved online.</p></div><button class="btn" id="freeboxbtn" type="button">🎁 Claim free character</button><small id="freeboxstatus">Checking your reward…</small></div><div id="characterboxes" class="cardrow"></div><h3>👑 Character collection</h3><div id="charactercollection" class="cardrow"></div><p id="boxresult" class="sub">Open a box to receive a server-selected character.</p></section><section class="panel"><h2>🏰 Your 3D-style Kingdom</h2><p class="sub">This is your kingdom village. Buildings grow as you upgrade them, with the same levels saved on the server.</p><div class="kingdom-village"><div class="village-scene"><div id="villageCellGrid" class="village-cell-grid hidden" aria-label="Village placement grid"></div><div class="village-path"></div><div class="village-building village-castle"><div class="village-roof"></div><div class="village-door"></div><span id="vCastle">Castle</span></div><div class="village-building village-mine"><div class="village-roof"></div><div class="village-door"></div><span id="vMine">Gold Mine</span></div><div class="village-building village-barracks"><div class="village-roof"></div><div class="village-door"></div><span id="vBarracks">Barracks</span></div><div class="village-building village-wall"><div class="village-roof"></div><div class="village-door"></div><span id="vWalls">Walls</span></div><div class="village-tree t1"></div><div class="village-tree t2"></div><div class="village-tree t3"></div></div><div class="village-actions"><strong id="villageName">Your Kingdom</strong><p id="villageStats" class="sub">Loading buildings…</p><button class="btn secondary" id="villageMineUpgrade">⛏️ Upgrade Gold Mine</button><button class="btn secondary" id="villageGoCoins">🪙 Collect Gold</button><button class="btn secondary" id="villageEdit">✏️ Edit village layout</button><div id="villageEditTools" class="hidden"><p class="sub">Choose a building below, then tap an empty glowing spot in your village. Your layout saves online.</p><div id="villagePick" class="village-picker"></div><button class="btn" id="villageSave">💾 Save village</button><button class="btn secondary" id="villageCancel">Cancel</button></div><p id="villageLayoutStatus" class="sub" role="status"></p></div></div></section><section class="panel"><h2>🏗️ Kingdom builder</h2><p class="sub">Gold mines also produce 2 coins per minute per level, collected in the Coins tab. Mines grant +0.25 power/min; walls grant +100 defense. All upgrades save online.</p><div id="buildings" class="cardrow"></div></section><section class="panel"><h2>📜 Daily quests</h2><p class="sub">Complete missions to earn Battle Pass XP. Daily quests and Battle Pass XP save to your online account. Battle Pass levels grant claimable coin rewards.</p><div id="questlist" class="cardrow"></div></section>
 <section class="panel"><h2>🏅 Royal achievements</h2><p class="sub">Complete permanent milestones to earn server-verified coin rewards. Each prize can be claimed once per account.</p><div id="achievements" class="cardrow"><p>Loading achievements…</p></div></section><section class="panel"><h2>🎟️ Royal Battle Pass</h2><p class="sub">20 levels with server-saved XP. Every tier now has a real, one-time coin reward. Claim your unlocked tiers below.</p><div id="passprogress" class="stat"></div><div id="passrewards" class="cardrow"></div></section>
 <section class="panel"><h2>🤝 Friends & friendly battles</h2><p class="sub">Send requests to other kingdoms. Accept requests and challenge friends from their profile. Challenge online friends using server-checked battles. Targets must be online and unshielded; attacks have a 30-second cooldown.</p><div id="friendsearch"></div><h3>📨 Requests</h3><div id="friendrequests" class="muted">Loading…</div><h3>👑 My friends</h3><div id="friendlist" class="muted">No friends yet.</div></section>
-<section class="panel"><h2>🏆 Global leaderboard</h2><div id="leaderboard"></div></section><section class="panel"><h2>📜 Your battle reports</h2><div id="logs" class="muted">No battles yet</div></section></div></main><footer>Conquer the Empires · Royal Edition v2.4 · Free online prototype</footer><div id="toast" class="toast hidden" role="status"></div>
+<section class="panel"><h2>🏆 Global leaderboard</h2><div id="leaderboard"></div></section><section class="panel"><h2>📜 Your battle reports</h2><div id="logs" class="muted">No battles yet</div></section></div></main><footer>Conquer the Empires · Royal Edition v2.5 · Free online prototype</footer><div id="toast" class="toast hidden" role="status"></div>
 <script type="module">
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 const $=id=>document.getElementById(id);let db,uid,kingdom,refreshTimer,toastTimer,selectedTarget=null,worldPlayers=[];
@@ -183,7 +212,7 @@ function show(id,yes){$(id).classList.toggle('hidden',!yes)}function notice(msg,
 function authMessage(message){$('authhint').textContent=message;}
 function status(s){$('connection').textContent=s}
 async function rpc(action,target=null,name=null,ruler=null){const {data,error}=await db.rpc('cte_game_action',{p_action:action,p_target:target,p_name:name,p_ruler:ruler});if(error)throw error;kingdom=data.kingdom;render();return data}
-async function load(){const {data,error}=await db.from('cte_kingdoms').select('*').eq('user_id',uid).maybeSingle();if(error)throw error;kingdom=data;show('create',!data);show('game',!!data);if(data){await rpc('sync');await loadWorld();await loadFriends();await loadCharacters();await loadBattleDeck();await loadQuests();await loadPassClaims();await loadDaily();await loadAchievements();await loadFreeBox();await loadOutpost();await loadCoinCenter()}}
+async function load(){const {data,error}=await db.from('cte_kingdoms').select('*').eq('user_id',uid).maybeSingle();if(error)throw error;kingdom=data;show('create',!data);show('game',!!data);if(data){await rpc('sync');await loadWorld();await loadVillageLayout();await loadBossStatus();await loadFriends();await loadCharacters();await loadBattleDeck();await loadQuests();await loadPassClaims();await loadDaily();await loadAchievements();await loadFreeBox();await loadOutpost();await loadCoinCenter()}}
 async function startSession(session){uid=session.user.id;status('🟢 Signed in · Online');show('setup',false);await load();clearInterval(refreshTimer);refreshTimer=setInterval(async()=>{if(document.visibilityState!=='visible')return;try{await rpc('sync');await loadWorld();await loadFriends();await loadCharacters();await loadQuests();await loadPassClaims();await loadDaily();await loadAchievements();await loadFreeBox();await loadOutpost();await loadCoinCenter()}catch(e){status('🔴 Connection interrupted');notice(e.message,true)}},30000)}
 async function authenticate(mode){const email=$('email').value.trim(),password=$('password').value;if(!email.includes('@')||password.length<6)throw Error('Enter an email and password of at least 6 characters');status('⏳ Connecting…');const r=mode==='signup'?await db.auth.signUp({email,password}):await db.auth.signInWithPassword({email,password});if(r.error){authMessage(r.error.message);throw r.error}if(r.data.session){authMessage('Successfully signed in.');await startSession(r.data.session)}else{authMessage('Signup request received. Check your inbox and spam. If no email arrives, use Resend confirmation or Email not arriving? below.');status('✉️ Confirmation may be required')}}
 async function boot(){const {data,error}=await db.auth.getSession();if(error)throw error;if(data.session)await startSession(data.session);else status('🔐 Log in to play online')}
@@ -383,6 +412,100 @@ function renderVillage(k){
 }
 $('villageMineUpgrade').onclick=()=>buildKingdom('mine');
 $('villageGoCoins').onclick=()=>showRoyalTab('treasury');
+
+
+/* Village positions are server saved and checked for collisions. */
+const VILLAGE_START={castle:[1,0],mine:[0,2],barracks:[3,2],wall:[2,1]};
+const VILLAGE_MAP={castle:['.village-castle','🏰 Castle'],mine:['.village-mine','⛏️ Mine'],barracks:['.village-barracks','⚔️ Barracks'],wall:['.village-wall','🛡️ Walls']};
+let villageLayout=JSON.parse(JSON.stringify(VILLAGE_START)),villageOriginal=JSON.parse(JSON.stringify(VILLAGE_START)),villageEditing=false,villageSelected='castle';
+function renderVillagePositions(){
+ for(const [id,info] of Object.entries(VILLAGE_MAP)){
+  const p=villageLayout[id],el=document.querySelector(info[0]);if(!el)continue;
+  el.style.left=(20+p[0]*20)+'%';el.style.top=(33+p[1]*21)+'%';el.style.transform='translate(-50%,-50%)';
+  el.style.zIndex=String(2+p[1]);
+ }
+ const grid=$('villageCellGrid');grid.replaceChildren();grid.classList.toggle('hidden',!villageEditing);
+ if(!villageEditing)return;
+ for(let y=0;y<3;y++)for(let x=0;x<4;x++){
+  const occupied=Object.entries(villageLayout).find(([,v])=>v[0]===x&&v[1]===y)?.[0];
+  const cell=document.createElement('button');cell.type='button';cell.className='village-cell'+(occupied?' occupied':'')+(occupied===villageSelected?' selected':'');
+  cell.style.left=(20+x*20)+'%';cell.style.top=(33+y*21)+'%';
+  cell.title=occupied?'Occupied by '+VILLAGE_MAP[occupied][1]:'Place '+VILLAGE_MAP[villageSelected][1];
+  cell.setAttribute('aria-label',cell.title);
+  cell.onclick=()=>{
+   if(occupied&&occupied!==villageSelected){villageSelected=occupied;renderVillagePicker();renderVillagePositions();return}
+   villageLayout[villageSelected]=[x,y];renderVillagePositions();$('villageLayoutStatus').textContent='Unsaved layout. Press Save village to keep it online.';
+  };
+  grid.append(cell);
+ }
+}
+function renderVillagePicker(){
+ const root=$('villagePick');root.replaceChildren();
+ for(const [id,info] of Object.entries(VILLAGE_MAP)){
+  const b=document.createElement('button');b.type='button';b.className=id===villageSelected?'selected':'';
+  b.textContent=info[1];b.onclick=()=>{villageSelected=id;renderVillagePicker();renderVillagePositions()};root.append(b);
+ }
+}
+function setVillageEditor(open){
+ villageEditing=open;$('villageEditTools').classList.toggle('hidden',!open);
+ $('villageEdit').textContent=open?'✏️ Editing village…':'✏️ Edit village layout';
+ $('villageEdit').disabled=open;document.querySelector('.village-scene')?.classList.toggle('editing',open);
+ renderVillagePicker();renderVillagePositions();
+}
+async function loadVillageLayout(){
+ if(!uid||villageEditing)return;
+ const {data,error}=await db.from('cte_village_layout').select('layout').eq('user_id',uid).maybeSingle();
+ if(error){$('villageLayoutStatus').textContent='Could not load saved layout: '+error.message;return}
+ const v=data?.layout||VILLAGE_START;
+ if(Object.keys(VILLAGE_START).every(k=>Array.isArray(v[k])&&v[k].length===2)){
+  villageLayout=JSON.parse(JSON.stringify(v));villageOriginal=JSON.parse(JSON.stringify(v));renderVillagePositions();
+ }
+}
+async function saveVillageLayout(){
+ const btn=$('villageSave');btn.disabled=true;
+ try{
+  const {error}=await db.rpc('cte_save_village',{p_layout:villageLayout});if(error)throw error;
+  villageOriginal=JSON.parse(JSON.stringify(villageLayout));setVillageEditor(false);
+  $('villageLayoutStatus').textContent='✅ Village layout saved to your online kingdom.';notice('🏰 Village layout saved!');
+ }catch(e){$('villageLayoutStatus').textContent='⚠️ '+e.message;notice(e.message,true)}
+ finally{btn.disabled=false}
+}
+$('villageEdit').onclick=()=>setVillageEditor(true);
+$('villageSave').onclick=saveVillageLayout;
+$('villageCancel').onclick=()=>{villageLayout=JSON.parse(JSON.stringify(villageOriginal));setVillageEditor(false);$('villageLayoutStatus').textContent='Changes canceled.'};
+renderVillagePositions();
+
+/* Repeatable NPC boss raid. Victory, cooldown, and rewards come from the server. */
+let bossData=null,bossRunning=false;
+async function loadBossStatus(){
+ if(!uid||!kingdom)return;
+ const {data,error}=await db.from('cte_boss_raids').select('last_raid,victories,attempts').eq('user_id',uid).maybeSingle();
+ if(error){$('bossStatus').textContent='Boss status unavailable: '+error.message;$('bossFight').disabled=true;return}
+ bossData=data||{last_raid:'2000-01-01',victories:0,attempts:0};
+ const strength=Number(kingdom.power)+Number(kingdom.swords)*3+Number(kingdom.archers)*5+Number(kingdom.cavalry)*10;
+ const needed=50+Number(bossData.victories)*25;
+ const remain=Math.max(0,600000-(Date.now()-new Date(bossData.last_raid).getTime()));
+ $('bossPower').textContent='👑 Boss strength: '+fmt(needed)+' · Your army: '+fmt(strength);
+ $('bossRecord').textContent='🏆 Wins: '+bossData.victories+' · Attempts: '+bossData.attempts;
+ $('bossStatus').textContent=remain>0?'Next raid in '+Math.ceil(remain/60000)+' minute(s)':'💀 Skeleton King is ready to fight!';
+ $('bossFight').disabled=bossRunning||remain>0;
+}
+async function fightBoss(){
+ const b=$('bossFight');b.disabled=true;bossRunning=true;
+ try{
+  const {data,error}=await db.rpc('cte_fight_boss');if(error)throw error;
+  const stage=document.querySelector('.boss-stage'),bar=$('bossHealth'),label=$('bossHealthLabel');
+  stage.classList.add('hit');
+  const last=data.victory?0:35;
+  for(let i=0;i<5;i++){const hp=Math.round(100-(100-last)*(i+1)/5);bar.style.width=hp+'%';label.textContent=hp+'% HP';await new Promise(r=>setTimeout(r,180))}
+  stage.classList.remove('hit');
+  $('bossResult').textContent=(data.victory?'🏆 BOSS DEFEATED!':'⚔️ You battled bravely!')+' +'+fmt(data.coins_awarded)+' coins'+(data.victory?' and +10 kingdom power.':' consolation reward.');
+  await rpc('sync');await loadBossStatus();
+  notice((data.victory?'🏆 Boss conquered! ':'⚔️ Boss defended! ')+'+'+fmt(data.coins_awarded)+' coins');
+ }catch(e){document.querySelector('.boss-stage')?.classList.remove('hit');$('bossResult').textContent='⚠️ '+e.message;notice(e.message,true);await loadBossStatus()}
+ finally{bossRunning=false;await loadBossStatus()}
+}
+$('bossFight').onclick=fightBoss;
 
 const ACHIEVEMENTS=[
  {id:'first_recruits',icon:'⚔️',title:'Army Commander',desc:'Recruit at least 10 total troops',reward:1000,eligible:()=>Number(kingdom?.swords||0)+Number(kingdom?.archers||0)+Number(kingdom?.cavalry||0)>=10},
@@ -789,7 +912,7 @@ const tabInfo={
  overview:['Your empire','Your kingdom at a glance'],
  war:['World conquest','Find rival kingdoms and inspect battle reports'],
  army:['Train your army','Recruit and strengthen your troops'],
- kingdom:['Build your kingdom','Upgrade your production and defenses'],
+ kingdom:['Build your kingdom','Rearrange your village and upgrade buildings'],
  treasury:['Gold treasury','Earn and collect coins from mines and caravans'],
  heroes:['Your hero collection','Collect and evolve legendary champions'],
  rewards:['Daily rewards','Claim quests and level up your Battle Pass'],
@@ -803,7 +926,7 @@ function initRoyalNavigation(){
  for(const panel of sections){
   const title=(panel.querySelector('h2')?.textContent||'').toLowerCase();
   let tab='overview';
-  if(/world conquest|battles|battle reports/.test(title))tab='war';
+  if(/world conquest|battles|battle reports|boss raid/.test(title))tab='war';
   else if(/army battle|army barracks|battle deck|power & training|conqueror skills|royal market/.test(title))tab='army';
   else if(/kingdom builder/.test(title))tab='kingdom';
   else if(/gold treasury/.test(title))tab='treasury';
