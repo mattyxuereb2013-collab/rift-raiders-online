@@ -1282,9 +1282,9 @@ function skillTick(){
  skillRender();
 }
 function skillStart(){
+ if(skillDeck.length!==8){$('skillBattleStatus').textContent='Choose eight practice cards first.';return}
  clearInterval(skillInterval);
  skillMatch={running:true,time:60,elixir:5,enemyElixir:5,allyTowers:[100,100],enemyTowers:[100,100],units:[]};
- if(skillDeck.length!==8){$('skillBattleStatus').textContent='Choose eight practice cards first.';return}
  skillMatch.hand=skillDeck.slice(0,4);skillMatch.queue=skillDeck.slice(4);skillRenderDeck();
  skillChoice=skillMatch.hand[0];$('skillBattleStatus').textContent='⚔️ Battle started! Choose a card, then deploy top or bottom. Elixir regenerates every second.';
  skillRender();skillInterval=setInterval(skillTick,1000);
