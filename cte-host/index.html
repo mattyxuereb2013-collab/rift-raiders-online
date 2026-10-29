@@ -541,8 +541,8 @@ async function saveVillageLayout(){
 $('villageEdit').onclick=()=>setVillageEditor(true);
 $('villageSave').onclick=saveVillageLayout;
 $('villageCancel').onclick=()=>{villageLayout=JSON.parse(JSON.stringify(villageOriginal));setVillageEditor(false);$('villageLayoutStatus').textContent='Changes canceled.'};
-renderVillagePositions();
 let villageCameraAngle=0,villageCameraZoom=false;
+renderVillagePositions();
 function updateVillageCamera(){
  const scene=document.querySelector('.village-scene');
  scene.style.setProperty('--village-angle',villageCameraAngle+'deg');
