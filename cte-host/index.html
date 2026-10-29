@@ -922,6 +922,18 @@ let currentTab='overview';
 function initRoyalNavigation(){
  const game=document.getElementById('game'),nav=document.getElementById('gameNav');
  if(!game||!nav)return;
+ // Protect against double initialization, e.g. re-entry or a duplicate script.
+ // Even if an older build added two copies, retain only one overview heading and action bar.
+ if(game.dataset.royalNavInitialized==='1'){
+  for(const id of ['tabHeading','quickActions']){
+   const copies=[...game.querySelectorAll('[id="'+id+'"]')];
+   copies.slice(1).forEach(node=>node.remove());
+  }
+  return;
+ }
+ game.dataset.royalNavInitialized='1';
+ // Remove any stale UI fragments left by an earlier initialization.
+ game.querySelectorAll('[id="tabHeading"],[id="quickActions"]').forEach(node=>node.remove());
  const sections=[...game.querySelectorAll('section.panel')];
  for(const panel of sections){
   const title=(panel.querySelector('h2')?.textContent||'').toLowerCase();
