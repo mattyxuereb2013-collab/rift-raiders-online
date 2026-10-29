@@ -1,0 +1,601 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0a1020"><title>Conquer the Empires — Online</title><style>
+:root{color-scheme:dark;font-family:system-ui,Arial;color:#f5edd9;background:#0a1020}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% 0%,#293e59 0%,#0a1020 70%);min-height:100vh}header{padding:25px 16px 16px;text-align:center;background:linear-gradient(#1b2b42bb,transparent)}h1{font-family:Georgia,serif;color:#f7c76a;font-size:clamp(28px,6vw,46px);margin:5px}h2{color:#f7cf81;margin:0 0 12px;font-size:21px}.sub{color:#afc0d1;font-size:13px}.wrap{max-width:1000px;margin:auto;padding:12px 16px 50px}.panel{background:#162339e8;border:1px solid #415574;border-radius:15px;padding:18px;margin:12px 0;box-shadow:0 12px 28px #0003}.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.stat{background:#0b172a;border:1px solid #354a65;border-radius:12px;padding:15px}.stat b{display:block;font-size:25px;color:#ffe0a1}.stat small{color:#a8bbcf}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}.grid .panel{margin:0}.btn{border:1px solid #a77732;background:linear-gradient(#a97733,#70451c);color:#fff7df;border-radius:10px;padding:12px 15px;font-weight:700;cursor:pointer;margin:5px 4px 5px 0;min-height:44px}.btn.secondary{background:#263a56;border-color:#4c668a}.btn:disabled{opacity:.4;cursor:not-allowed}input{background:#0b1525;border:1px solid #536b89;border-radius:8px;color:white;padding:12px;width:100%;margin:6px 0 10px;font-size:16px}.hidden{display:none!important}.pill{border:1px solid #64829b;background:#20364e;border-radius:20px;padding:4px 10px;display:inline-block;font-size:12px}.enemy{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid #3a4c66;padding:10px 0}.enemy:first-child{border-top:0}.enemy button{flex-shrink:0}.toast{position:fixed;bottom:15px;left:50%;transform:translateX(-50%);background:#284263;border:1px solid #d7a75a;border-radius:12px;padding:14px;max-width:90%;width:max-content;z-index:10;box-shadow:0 10px 30px #0009}.good{color:#9ae4a8}.bad{color:#ffaaaa}.bar{height:7px;background:#34435a;border-radius:20px;overflow:hidden;margin-top:10px}.bar div{height:100%;background:#e9b760}.topline{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.muted{color:#a8b8ca}.tag{color:#9fe2b4;font-weight:700}footer{text-align:center;color:#8194a9;font-size:12px;padding:20px}
+.world{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;padding:12px;border:2px solid #566e4e;border-radius:15px;background:repeating-linear-gradient(35deg,#1a3a32,#1a3a32 24px,#214235 25px,#214235 49px);min-height:340px}.tile{position:relative;min-height:45px;border:1px solid #ffffff18;border-radius:8px;background:#ffffff09;color:white;display:flex;align-items:center;justify-content:center;font-size:23px;cursor:pointer}.tile:disabled{cursor:default}.tile.castle{background:#304d46;border-color:#c4b477}.tile.mine{background:#38514b}.tile.selected{outline:3px solid #ffcd68;outline-offset:-2px}.tile small{position:absolute;bottom:1px;left:2px;right:2px;font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#06111cba}.cardrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px}.armycard{padding:12px;border:2px solid #60718a;border-radius:14px;background:linear-gradient(145deg,#293e58,#121f32);min-height:165px}.armycard h3{margin:5px 0}.armycard.common{border-color:#8595a7}.armycard.rare{border-color:#4ba1f2}.armycard.epic{border-color:#ad72ee}.armycard.legendary{border-color:#efbb55}.armycard .emoji{font-size:36px}.armycard button{width:100%;font-size:12px}.battlefield{padding:18px;border:1px solid #b5904f;border-radius:12px;background:#121d30;margin:10px 0}.duel{display:flex;align-items:center;justify-content:space-around;gap:12px;text-align:center}.duel .fighter{flex:1;font-size:30px}.duel strong{display:block;font-size:13px}.impact{animation:impact .3s ease-in-out 3}@keyframes impact{50%{transform:translateX(8px) scale(1.1);filter:brightness(1.8)}}
+
+.battlefield{overflow:hidden;position:relative;background:linear-gradient(#152d42 0%,#223e44 48%,#40533c 49%,#293b2d 100%);min-height:310px}
+.war-stage{height:225px;position:relative;overflow:hidden;border-radius:12px;background:linear-gradient(#203a55 0 48%,#536d43 49% 65%,#344e35 66%);border:2px solid #8d9b77}
+.war-stage:before{content:"";position:absolute;inset:58% 0 0;background:repeating-linear-gradient(15deg,transparent 0 28px,#ffffff0a 29px 31px)}
+.war-army{position:absolute;top:22%;width:38%;display:grid;grid-template-columns:repeat(3,1fr);gap:5px;transition:transform .7s ease,opacity .4s;will-change:transform}
+.war-army.left{left:2%}.war-army.right{right:2%;transform:scaleX(-1)}
+.war-unit{font-size:clamp(22px,5vw,39px);text-align:center;filter:drop-shadow(2px 5px 2px #0008);animation:war-bob .5s ease-in-out infinite alternate}
+.war-unit:nth-child(2n){animation-delay:.25s}
+.war-stage.clash .war-army.left{transform:translateX(46%)}
+.war-stage.clash .war-army.right{transform:translateX(-46%) scaleX(-1)}
+.war-stage.strike .war-unit{animation:war-strike .25s infinite alternate}
+.war-stage.finished .war-army.loser{opacity:.22;transform:translateY(60px) rotate(15deg)}
+.war-projectile{position:absolute;font-size:28px;left:20%;top:40%;animation:arrowfly .7s linear forwards;z-index:4}
+.war-burst{position:absolute;left:46%;top:35%;font-size:42px;animation:burst .4s ease-out forwards;z-index:5}
+.war-status{display:flex;justify-content:space-between;gap:8px;margin:8px 0;font-size:13px}
+.war-health{height:10px;background:#111;border-radius:8px;overflow:hidden;flex:1}
+.war-health>i{display:block;height:100%;width:100%;background:#63d77d;transition:width .35s}
+.war-health.enemy>i{background:#e46b6b}
+.map-marcher{position:absolute;z-index:10;font-size:32px;pointer-events:none;filter:drop-shadow(1px 3px 3px #000);transition:left 1.5s linear,top 1.5s linear}
+.world{position:relative}
+@keyframes war-bob{to{transform:translateY(-7px)}}@keyframes war-strike{to{transform:translateX(13px) rotate(-12deg)}}@keyframes arrowfly{to{left:76%;top:32%}}@keyframes burst{to{transform:scale(2);opacity:0}}
+
+/* ROYAL EDITION — UI refresh, no gameplay economy changes */
+:root{--gold:#f3c36a;--ink:#08101e;--panel:#111e32;--line:#344860;--mint:#8fe3bf}
+html{scroll-behavior:smooth}body{background:radial-gradient(ellipse at 70% -10%,#243e59 0%,transparent 46%),linear-gradient(160deg,#080f1d,#0c1729 70%,#111a2b);color:#e9eef7}
+header{padding:24px 16px 19px;background:linear-gradient(180deg,#101f34 0%,#0d1929 100%);border-bottom:1px solid #283b53}
+header h1{letter-spacing:.055em;font-size:clamp(23px,4vw,36px);font-weight:800;text-shadow:0 2px 22px #e6b35a35}
+.brand-crest{width:60px;height:60px;margin:auto;border:1px solid #e4b66188;background:radial-gradient(circle at 40% 20%,#a9783c,#3d2a25 75%);border-radius:18px;display:grid;place-items:center;font-size:42px;color:#ffdb83;box-shadow:0 8px 30px #0008,inset 0 1px #fff5;transform:rotate(-5deg)}
+.wrap{max-width:1320px;padding:20px 20px 80px}
+.panel{background:linear-gradient(155deg,#16253a 0%,#101b2d 100%);border:1px solid #354b64;border-radius:20px;padding:24px;margin:16px 0;box-shadow:0 10px 26px #0002}
+.panel h2{font-size:clamp(19px,2vw,24px);letter-spacing:-.025em}
+.panel h3{color:#e7d3ad}.panel>.sub{max-width:850px;line-height:1.65}
+.stat{border:1px solid #354963;background:linear-gradient(145deg,#17273e,#0c1829);padding:20px;border-radius:18px;min-height:125px;box-shadow:inset 0 1px #ffffff0a}
+.stat b{font-size:clamp(25px,3vw,36px);letter-spacing:-.04em}.stat small{display:block;line-height:1.6}.stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:15px 0 24px}
+.btn{background:linear-gradient(160deg,#ffdf93,#d9a14a);color:#24190c;border:1px solid #f8d995;border-radius:12px;padding:12px 17px;box-shadow:0 3px 0 #815b2b,0 7px 18px #0003;transition:transform .16s,filter .16s,box-shadow .16s;font-size:14px}
+.btn.secondary{background:#203550;color:#e6f0ff;border-color:#45627e;box-shadow:0 3px 0 #142239}
+.btn:not(:disabled):hover{transform:translateY(-2px);filter:brightness(1.1);box-shadow:0 5px 0 #815b2b,0 11px 24px #0004}
+.btn:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px 0 #815b2b}
+.btn:focus-visible,.nav-btn:focus-visible,.tile:focus-visible{outline:3px solid #ffe3a3;outline-offset:3px}
+.btn:disabled{opacity:.42;box-shadow:none}
+.game-nav{position:sticky;top:0;z-index:25;display:flex;gap:7px;justify-content:center;overflow-x:auto;padding:10px max(12px,calc((100vw - 1320px)/2));background:#0b1627f5;border-bottom:1px solid #3a4b63;backdrop-filter:blur(18px);scrollbar-width:thin}
+.nav-btn{flex:0 0 auto;min-height:43px;display:flex;align-items:center;gap:6px;border-radius:11px;border:1px solid transparent;background:transparent;color:#b3c3d6;font-weight:750;padding:10px 15px;cursor:pointer;white-space:nowrap}
+.nav-btn:hover{background:#1a2d46;color:white}.nav-btn.active{background:linear-gradient(145deg,#4c3925,#29253a);color:#ffdf9b;border-color:#b98b49}
+.royal-banner{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:25px 32px;border:1px solid #ad834c80;border-radius:21px;background:radial-gradient(circle at 83% 30%,#5a4a32 0%,transparent 37%),linear-gradient(125deg,#23334a,#17263a 60%,#302b32);margin-bottom:16px;overflow:hidden}
+.royal-banner h2{font:700 clamp(26px,4vw,43px) Georgia,serif;color:#ffdc94;margin:6px 0}.royal-banner p{color:#bfcbd8;margin:5px 0}.eyebrow{color:#d3b77c;font-size:11px;letter-spacing:.18em;font-weight:800}.banner-crown{font-size:clamp(55px,10vw,110px);filter:drop-shadow(0 15px 14px #0008)}
+.world{min-height:0;gap:6px;padding:15px;border:1px solid #6c8a6a;background:radial-gradient(circle at 30% 30%,#2b594c,#17352e 70%);border-radius:17px}
+.tile{min-height:74px;background:#ffffff07;border:1px solid #d1e9d21a;border-radius:11px;transition:background .2s,transform .2s;font-size:27px}
+.tile.castle{background:#bba45a22;border:1px solid #e9c2768c}.tile:not(:disabled):hover{background:#f5d18626;transform:translateY(-2px)}.tile small{font-size:10px;padding:3px 1px;background:#0b1925cf;border-radius:0 0 8px 8px}
+.cardrow{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:13px}
+.armycard{background:linear-gradient(145deg,#243750,#121e31);border-width:1px;min-height:150px;padding:17px;transition:transform .2s,box-shadow .2s}.armycard:hover{transform:translateY(-3px);box-shadow:0 10px 25px #0005}
+.armycard.rare{box-shadow:inset 0 0 22px #3994f012}.armycard.legendary{box-shadow:inset 0 0 26px #f0b95722}
+.game-section{animation:enter .24s ease both}@keyframes enter{from{opacity:.5;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.section-heading{margin:16px 0 8px;padding:4px 2px}.section-heading h2{font:700 29px Georgia,serif;color:#f6d390;margin:0}.section-heading p{color:#9caec3;font-size:14px;margin:6px 0}
+.quick-actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0 20px}.quick-actions button{min-width:135px}
+#setup{max-width:500px;margin:24px auto}#setup label{display:block;font-weight:600;color:#c8d7e7}#setup .btn{width:100%;margin:5px 0}.auth-guide{margin-top:14px;border:1px solid #d4aa63;border-radius:12px;padding:14px;background:#2a2a2b;color:#e9e2d5;line-height:1.6}.auth-guide p{margin:8px 0}
+#targetinfo{margin:15px 0 0;padding:14px;border-style:dashed}
+#passrewards .armycard{min-height:85px}
+@media(max-width:950px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.wrap{padding:14px 14px 85px}.tile{min-height:56px}.game-nav{justify-content:flex-start}}
+@media(max-width:540px){header{padding:16px 10px}.brand-crest{width:45px;height:45px;font-size:32px}.panel{padding:17px;border-radius:15px}.royal-banner{padding:18px}.banner-crown{font-size:52px}.stat{padding:13px;min-height:105px}.stat b{font-size:24px}.stats{gap:8px}.world{padding:7px;gap:3px}.tile{min-height:42px;font-size:19px;border-radius:6px}.tile small{font-size:7px}.cardrow{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.armycard{padding:10px;min-height:125px}.nav-btn{padding:9px 11px;font-size:12px}.nav-btn span{display:inline}.grid{grid-template-columns:1fr}.btn{font-size:13px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
+.free-box{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:20px;border:1px solid #dcb46799;background:linear-gradient(120deg,#4b3626,#222b44 65%,#3d3150);border-radius:18px;margin:15px 0 22px;box-shadow:inset 0 1px 0 #ffffff21}
+.free-box strong{font-size:20px;color:#ffda90}.free-box .sub{margin:5px 0}.free-box small{width:100%;color:#d7c8aa}.free-box .btn{min-width:170px}
+@media(max-width:600px){.free-box{padding:15px}.free-box .btn{width:100%}}
+
+#tutorial:not(:disabled){background:linear-gradient(125deg,#a2efc5,#4eaf9c);border-color:#a7ffe1;color:#0d2c29;box-shadow:0 4px 0 #2a7167}
+#buyshield{background:linear-gradient(125deg,#375b92,#223c61);border-color:#79b8ff;color:#f0f9ff}
+#outpoststatus,#shieldpurchase{padding:10px 12px;border-left:3px solid #d9b06e;background:#ffffff07;border-radius:5px;min-height:35px}
+</style></head><body>
+<header><div class="brand-crest">♛</div><h1>CONQUER THE EMPIRES</h1><div class="sub">GOLD RUSH · V1.9</div><p id="connection" class="pill">🔌 Connecting…</p></header>
+<nav id="gameNav" class="game-nav hidden" aria-label="Game sections">
+<button class="nav-btn active" data-tab="overview">🏠 <span>Overview</span></button>
+<button class="nav-btn" data-tab="war">⚔️ <span>War</span></button>
+<button class="nav-btn" data-tab="army">🛡️ <span>Army</span></button>
+<button class="nav-btn" data-tab="kingdom">🏰 <span>Kingdom</span></button>
+<button class="nav-btn" data-tab="heroes">🎴 <span>Heroes</span></button>
+<button class="nav-btn" data-tab="treasury">🪙 <span>Coins</span></button><button class="nav-btn" data-tab="rewards">🎁 <span>Rewards</span></button>
+<button class="nav-btn" data-tab="social">🤝 <span>Social</span></button>
+</nav>
+<main class="wrap"><section id="setup" class="panel"><h2>👑 Enter your empire</h2><p class="muted">Create an account to save your kingdom online and return on another phone.</p><label>Email<input id="email" type="email" autocomplete="email" placeholder="you@example.com"></label><label>Password<input id="password" type="password" autocomplete="current-password" minlength="6" placeholder="At least 6 characters"></label><button class="btn" id="signup">Create account</button><button class="btn secondary" id="signin">Log in</button><button class="btn secondary" id="reset">Forgot password?</button><button class="btn secondary" id="resend">✉️ Resend confirmation email</button><button class="btn secondary" id="authhelp">❔ Email not arriving?</button><p id="authhint" class="sub" role="status" aria-live="polite">Confirmation emails require working Supabase email delivery. Check Spam/Junk or ask the administrator to configure SMTP. Never share your password.</p><div id="authguide" class="auth-guide hidden"><strong>Not getting a confirmation email?</strong><p>Check Spam, Junk, Promotions and All Mail. Search for Supabase. If it still does not arrive, ask the game administrator to configure email delivery in Supabase Auth. For private testing only, the administrator can temporarily disable Confirm email.</p><p>Account confirmation cannot be bypassed from this game. Never share your password.</p></div></section>
+<section id="create" class="panel hidden"><h2>👑 Found your kingdom</h2><input id="kingdomName" maxlength="30" placeholder="Kingdom name"><input id="rulerName" maxlength="30" placeholder="Conqueror name"><button id="found" class="btn">Create kingdom · 10,000 coins + basic swordsman</button></section>
+<div id="game" class="hidden"><div class="royal-banner"><div><span class="eyebrow">WELCOME BACK, CONQUEROR</span><h2>Build your legacy.</h2><p>Grow your kingdom, summon heroes, and conquer the world.</p></div><div class="banner-crown">🏰</div></div><div class="panel topline"><div><strong id="title">My Kingdom</strong><div class="sub" id="ruler"></div></div><div><span class="pill" id="online">🟢 Online</span> <button class="btn secondary" id="refresh">↻ Sync</button> <button class="btn secondary" id="logout">Log out</button></div></div>
+<div class="stats"><div class="stat"><small>⚡ Kingdom power</small><b id="power">10</b><small id="rate">+0.10 / minute</small></div><div class="stat"><small>🪙 Treasury</small><b id="coins">10,000</b><small>Earn more in Coins tab • starts with 10,000</small></div><div class="stat"><small>👑 Conqueror</small><b id="level">Lv. 1</b><small id="rarity">Common · 0 cards</small></div><div class="stat"><small>🛡️ Defense</small><b id="shield">0</b><small id="shieldtime">No active shield</small></div></div>
+<section class="panel" id="coincenter"><h2>🪙 Gold Treasury — Earn Coins</h2>
+<p class="sub">Earn real online coins without purchases. Gold mines produce 2 coins per minute per mine level (up to 24 hours between collections). Caravans return every five minutes. Daily gifts and achievements are on the Rewards tab.</p>
+<div class="cardrow">
+<div class="armycard common"><h3>⛏️ Collect Gold Mine</h3><p class="sub">Collect passive coins. Upgrade your mine in Kingdom to earn faster.</p><p id="mineinfo" class="sub">Checking production…</p><button id="claimmine" class="btn">🪙 Collect mine gold</button></div>
+<div class="armycard rare"><h3>🐎 Raid NPC Caravan</h3><p class="sub">Fight a practice caravan for 150–400 coins every five minutes. Requires at least 15 army strength.</p><p id="caravaninfo" class="sub">Checking caravan…</p><button id="raidcaravan" class="btn secondary">⚔️ Raid caravan</button></div>
+<div class="armycard common"><h3>🎁 Other Free Coins</h3><p class="sub">Daily gift: 750 coins. Tutorial outpost: 600 once. Four achievements: up to 5,700 coins. Victory over online rivals may reward coins.</p><button class="btn secondary" id="goRewards">🎁 Go to rewards</button></div>
+</div><p id="coinresult" role="status" class="sub"></p></section><section class="panel"><h2>🗺️ World conquest</h2><p class="sub">Choose a castle to inspect its ruler. Green tiles are wilderness; occupied castles represent real player kingdoms.</p><div id="worldmap" class="world" aria-label="World map"></div><div id="targetinfo" class="panel muted">Select an enemy castle on the map.</div><div id="battlefield" class="battlefield hidden"><h3>⚔️ BATTLE ANIMATION</h3><div id="warstatus" class="war-status"><span>Your troops</span><span>Enemy troops</span></div><div class="war-status"><div class="war-health"><i id="yourhp"></i></div><div class="war-health enemy"><i id="enemyhp"></i></div></div><div id="warstage" class="war-stage"><div id="yourarmy" class="war-army left"></div><div id="enemyarmy" class="war-army right"></div></div><p id="battletext" style="text-align:center" aria-live="polite"></p></div></section><section class="panel"><h2>🎴 Army battle cards</h2><p class="sub">Start with one Basic swordsman and 10,000 coins. Recruit troops to strengthen your kingdom. Army tiers are visual previews; server combat currently uses base troop stats.</p><div id="armycards" class="cardrow"></div><button class="btn" data-action="army_pack" disabled title="Server feature coming soon">🎁 Open army card pack · 300 🪙</button><p id="cardresult" class="sub"></p></section><div class="grid"><section class="panel"><h2>⚔️ Battles</h2><p class="sub">Online battles are server-verified. Server-authoritative PvP is enabled. Attack online unshielded rivals.</p><button class="btn" id="tutorial">🏕️ Conquer tutorial outpost · +5 ⚡ +600 🪙</button><p id="outpoststatus" class="sub" role="status">Checking your tutorial reward…</p><h3>🌍 Live rival kingdoms</h3><div id="rivals" class="muted">Loading…</div></section><section class="panel"><h2>🏹 Army barracks</h2><p id="troops" class="muted"></p><button class="btn secondary" data-action="swords">🗡️ Recruit swordsman · 35 🪙</button><button class="btn secondary" data-action="archers">🏹 Recruit archer · 75 🪙</button><button class="btn secondary" data-action="cavalry">🐎 Recruit cavalry · 160 🪙</button></section><section class="panel"><h2>📈 Power & training</h2><p class="muted">Keep your production rate after defeat. Train with conqueror rarity cards to increase levels.</p><button class="btn" data-action="upgrade">⚡ Upgrade +0.50 power/min · <span id="upgradecost">100</span> 🪙</button><button class="btn secondary" data-action="train" disabled title="Server feature coming soon">📜 Train conqueror · <span id="traincost">130</span> 🪙 + 1 card</button><p class="sub" id="skills"></p></section><section class="panel"><h2>🎴 Royal market</h2><p class="muted">Buy packs with earned coins. Rarity affects training bonuses.</p><button class="btn" data-action="pack" disabled title="Server feature coming soon">🎁 Open conqueror pack · 5,000 🪙</button><button class="btn secondary" id="buyshield">🛡️ Buy 24h shield · +1,000 defense · 5,000 🪙</button><p class="sub">Shields last 24 hours per purchase, stacking duration and defense. Rivals cannot attack while shielded.</p><p id="shieldpurchase" class="sub" role="status"></p></section></div>
+<section class="panel"><h2>✨ Conqueror skills</h2><p class="sub">Unlock a skill at levels 20, 40, 60, 80 and 100. Higher rarity means longer cooldowns (maximum 30 seconds). Skill animations are a preview until server-side skill damage is implemented.</p><div id="skillbuttons" class="cardrow"></div><p id="skillmessage" class="sub">Level up to unlock skills.</p></section>
+<section class="panel"><h2>☀️ Daily Kingdom Gift</h2><p class="sub">Claim 750 coins once per UTC day. The server verifies your claim, so reloading or switching devices cannot claim it twice.</p><button id="dailyclaim" class="btn">🎁 Claim 750 free coins</button><p id="dailystatus" class="sub">Checking claim status…</p></section><section class="panel"><h2>🎁 Character boxes</h2><p class="sub">Spend coins on real server-verified character boxes. Rewards are saved to your account. Mythic and Ultra can drop from Mythic boxes.</p><div class="free-box" id="freeboxpanel"><div><strong>✨ Daily Free Summon</strong><p class="sub">One free Wooden Box every UTC day — your character is saved online.</p></div><button class="btn" id="freeboxbtn" type="button">🎁 Claim free character</button><small id="freeboxstatus">Checking your reward…</small></div><div id="characterboxes" class="cardrow"></div><h3>👑 Character collection</h3><div id="charactercollection" class="cardrow"></div><p id="boxresult" class="sub">Open a box to receive a server-selected character.</p></section><section class="panel"><h2>🏗️ Kingdom builder</h2><p class="sub">Gold mines also produce 2 coins per minute per level, collected in the Coins tab. Mines grant +0.25 power/min; walls grant +100 defense. All upgrades save online.</p><div id="buildings" class="cardrow"></div></section><section class="panel"><h2>📜 Daily quests</h2><p class="sub">Complete missions to earn Battle Pass XP. Daily quests and Battle Pass XP save to your online account. Cosmetic rewards are still previews.</p><div id="questlist" class="cardrow"></div></section>
+<section class="panel"><h2>🏅 Royal achievements</h2><p class="sub">Complete permanent milestones to earn server-verified coin rewards. Each prize can be claimed once per account.</p><div id="achievements" class="cardrow"><p>Loading achievements…</p></div></section><section class="panel"><h2>🎟️ Royal Battle Pass</h2><p class="sub">20 levels with server-saved XP. Cosmetic rewards are previews, not yet redeemable.</p><div id="passprogress" class="stat"></div><div id="passrewards" class="cardrow"></div></section>
+<section class="panel"><h2>🤝 Friends & friendly battles</h2><p class="sub">Send requests to other kingdoms. Accept requests and challenge friends from their profile. Challenge online friends using server-checked battles. Targets must be online and unshielded; attacks have a 30-second cooldown.</p><div id="friendsearch"></div><h3>📨 Requests</h3><div id="friendrequests" class="muted">Loading…</div><h3>👑 My friends</h3><div id="friendlist" class="muted">No friends yet.</div></section>
+<section class="panel"><h2>🏆 Global leaderboard</h2><div id="leaderboard"></div></section><section class="panel"><h2>📜 Your battle reports</h2><div id="logs" class="muted">No battles yet</div></section></div></main><footer>Conquer the Empires · Royal Edition v1.9 · Free online prototype</footer><div id="toast" class="toast hidden" role="status"></div>
+<script type="module">
+import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.57.0';
+const $=id=>document.getElementById(id);let db,uid,kingdom,refreshTimer,toastTimer,selectedTarget=null,worldPlayers=[];
+const PROJECT_URL='https://pziwwizieiyjpvtlkvjs.supabase.co';
+const PUBLIC_KEY='sb_publishable_Dn41VgZfEBr-wsg8EBICnQ_CseQ8f_G';
+db=createClient(PROJECT_URL,PUBLIC_KEY,{auth:{persistSession:true,autoRefreshToken:true}});const fmt=n=>Number(n||0).toLocaleString(undefined,{maximumFractionDigits:1});
+function show(id,yes){$(id).classList.toggle('hidden',!yes)}function notice(msg,error=false){$('toast').textContent=msg;$('toast').style.borderColor=error?'#f88':'#d7a75a';show('toast',true);clearTimeout(toastTimer);toastTimer=setTimeout(()=>show('toast',false),3500)}
+function authMessage(message){$('authhint').textContent=message;}
+function status(s){$('connection').textContent=s}
+async function rpc(action,target=null,name=null,ruler=null){const {data,error}=await db.rpc('cte_game_action',{p_action:action,p_target:target,p_name:name,p_ruler:ruler});if(error)throw error;kingdom=data.kingdom;render();return data}
+async function load(){const {data,error}=await db.from('cte_kingdoms').select('*').eq('user_id',uid).maybeSingle();if(error)throw error;kingdom=data;show('create',!data);show('game',!!data);if(data){await rpc('sync');await loadWorld();await loadFriends();await loadCharacters();await loadQuests();await loadDaily();await loadAchievements();await loadFreeBox();await loadOutpost();await loadCoinCenter()}}
+async function startSession(session){uid=session.user.id;status('🟢 Signed in · Online');show('setup',false);await load();clearInterval(refreshTimer);refreshTimer=setInterval(async()=>{if(document.visibilityState!=='visible')return;try{await rpc('sync');await loadWorld();await loadFriends();await loadCharacters();await loadQuests();await loadDaily();await loadAchievements();await loadFreeBox();await loadOutpost();await loadCoinCenter()}catch(e){status('🔴 Connection interrupted');notice(e.message,true)}},30000)}
+async function authenticate(mode){const email=$('email').value.trim(),password=$('password').value;if(!email.includes('@')||password.length<6)throw Error('Enter an email and password of at least 6 characters');status('⏳ Connecting…');const r=mode==='signup'?await db.auth.signUp({email,password}):await db.auth.signInWithPassword({email,password});if(r.error){authMessage(r.error.message);throw r.error}if(r.data.session){authMessage('Successfully signed in.');await startSession(r.data.session)}else{authMessage('Signup request received. Check your inbox and spam. If no email arrives, use Resend confirmation or Email not arriving? below.');status('✉️ Confirmation may be required')}}
+async function boot(){const {data,error}=await db.auth.getSession();if(error)throw error;if(data.session)await startSession(data.session);else status('🔐 Log in to play online')}
+function render(){if(!kingdom)return;const k=kingdom;$('title').textContent='🏰 '+k.kingdom_name;$('ruler').textContent='Conqueror '+k.ruler_name;$('power').textContent=fmt(k.power);$('rate').textContent='+'+fmt(k.rate)+' power/min';$('coins').textContent=fmt(k.coins);$('level').textContent='Lv. '+k.level;$('rarity').textContent=['Common','Uncommon','Rare','Epic','Legendary','Mythic','Ultra'][Math.min(6,Number(k.rarity)||0)]+' · '+k.cards+' cards';$('shield').textContent=fmt(k.shield);$('shieldtime').textContent=new Date(k.shield_until)>new Date()?'Active until '+new Date(k.shield_until).toLocaleString():'No active shield';renderCards(k);renderSkills();renderCharacterBoxes();renderBuildings();renderOwnedCharacters();$('troops').textContent=`🗡️ ${k.swords} swordsmen · 🏹 ${k.archers} archers · 🐎 ${k.cavalry} cavalry`;$('upgradecost').textContent=fmt(100);$('traincost').textContent=fmt(100+k.level*30);$('skills').textContent='Skills unlocked: '+([20,40,60,80,100].filter(x=>k.level>=x).map(x=>'Level '+x).join(', ')||'Next at level 20')}
+const cardNames=['Basic','Rare','Epic','Legendary'];const cardMult=[1,1.5,2.3,3.5];
+function renderCards(k){const el=$('armycards');el.replaceChildren();for(const [unit,emoji,title,base,cost] of [['swords','🗡️','Swordsman',3,35],['archers','🏹','Archer',5,75],['cavalry','🐎','Cavalry',10,160]]){const tier=Number(k[unit+'_tier']||0);const card=document.createElement('div');card.className='armycard '+['common','rare','epic','legendary'][tier];const h=document.createElement('div');h.className='emoji';h.textContent=emoji;const name=document.createElement('h3');name.textContent=title;const meta=document.createElement('p');meta.className='sub';meta.textContent=cardNames[tier]+' • '+(k[unit]||0)+' troops • '+(base*cardMult[tier]).toFixed(1)+' power each';const b=document.createElement('button');b.className='btn secondary';b.textContent='Recruit · '+cost+' 🪙';b.onclick=()=>act(unit);card.append(h,name,meta,b);el.append(card)}}
+function drawMap(players){worldPlayers=players;const el=$('worldmap');el.replaceChildren();const cells=Array.from({length:64},(_,i)=>i);const occupied=new Map();for(const p of players){let n=0;for(const ch of p.user_id)n=(n*31+ch.charCodeAt(0))>>>0;let spot=n%64;while(occupied.has(spot))spot=(spot+1)%64;occupied.set(spot,p)}for(const i of cells){const p=occupied.get(i),b=document.createElement('button');b.className='tile '+(p?'castle':'')+(p?.user_id===selectedTarget?' selected':'');b.type='button';b.textContent=p?(p.user_id===uid?'👑':'🏰'):(i%11===0?'⛰️':i%7===0?'🌲':'·');if(p){const label=document.createElement('small');label.textContent=p.kingdom_name;b.append(label);b.title=p.kingdom_name+' • '+fmt(p.power)+' power';b.onclick=()=>selectTarget(p)}else{b.disabled=true}el.append(b)}}
+function selectTarget(p){selectedTarget=p.user_id;drawMap(worldPlayers);const active=Date.now()-new Date(p.last_tick).getTime()<90000;const shielded=new Date(p.shield_until)>new Date();const info=$('targetinfo');info.replaceChildren();const title=document.createElement('h3');title.textContent='🏰 '+p.kingdom_name;const desc=document.createElement('p');desc.textContent=fmt(p.power)+' power • Level '+p.level+(p.user_id===uid?' • Your kingdom':!active?' • Offline / protected':shielded?' • Shielded':' • Online / attackable');info.append(title,desc);if(p.user_id!==uid){const friend=document.createElement('button');friend.className='btn secondary';friend.textContent='🤝 Send friend request';friend.onclick=()=>sendFriend(p.user_id);info.append(friend);const btn=document.createElement('button');btn.className='btn';btn.textContent='⚔️ ATTACK THIS KINGDOM';btn.disabled=p.user_id===uid||!active||shielded;btn.title=btn.disabled?'Target unavailable':'Attack kingdom';btn.onclick=()=>act('attack',p.user_id);info.append(btn)}}
+async function loadWorld(){const {data:players,error}=await db.from('cte_kingdoms').select('user_id,kingdom_name,power,level,last_tick,shield_until').order('power',{ascending:false}).limit(50);if(error)throw error;drawMap(players);renderFriendSearch(players);if(selectedTarget){const selected=players.find(p=>p.user_id===selectedTarget);if(selected)selectTarget(selected)}const rivals=players.filter(p=>p.user_id!==uid);$('rivals').replaceChildren();if(!rivals.length)$('rivals').textContent='No other kingdoms yet. Invite friends to join!';for(const p of rivals){const active=Date.now()-new Date(p.last_tick).getTime()<90000,protectedNow=new Date(p.shield_until)>new Date();const div=document.createElement('div');div.className='enemy';const label=document.createElement('div');label.textContent=`🏰 ${p.kingdom_name} · ${fmt(p.power)} power · Lv.${p.level}`;const b=document.createElement('button');b.className='btn secondary';b.textContent=!active?'Offline 🛡️':protectedNow?'Shielded 🛡️':'⚔️ Attack';b.disabled=!active||protectedNow;b.title=b.disabled?'Target offline or shielded':'Attack kingdom';b.onclick=()=>act('attack',p.user_id);div.append(label,b);$('rivals').append(div)}$('leaderboard').replaceChildren();for(const [i,p] of players.slice(0,10).entries()){const row=document.createElement('div');row.className='enemy';row.textContent=`${i+1}. ${p.kingdom_name} — ${fmt(p.power)} ⚡ ${p.user_id===uid?'(you)':''}`;$('leaderboard').append(row)}const {data:logs}=await db.from('cte_battle_log').select('enemy_name,victory,power_delta,coin_delta,created_at').eq('attacker',uid).order('created_at',{ascending:false}).limit(10);$('logs').replaceChildren();if(!logs?.length)$('logs').textContent='No battles yet';for(const l of logs||[]){const row=document.createElement('div');row.className='enemy';row.textContent=`${l.victory?'🏆 Victory':'💀 Defeat'} vs ${l.enemy_name} · ${fmt(l.power_delta)} power · +${fmt(l.coin_delta)} coins`;$('logs').append(row)} }
+
+
+
+
+const characterRoster=[
+ {name:'Squire Rowan',emoji:'🗡️',rarity:'Basic'},
+ {name:'Forest Archer',emoji:'🏹',rarity:'Uncommon'},
+ {name:'Iron Knight',emoji:'🛡️',rarity:'Rare'},
+ {name:'Storm Mage',emoji:'🧙',rarity:'Epic'},
+ {name:'Dragon Rider',emoji:'🐉',rarity:'Legendary'},
+ {name:'Moon Empress',emoji:'🌙',rarity:'Mythic'},
+ {name:'Celestial King',emoji:'👑',rarity:'Ultra'}
+];
+const characterBoxes=[
+ {name:'Wooden Box',emoji:'📦',cost:500,rarities:['Basic','Uncommon','Rare']},
+ {name:'Royal Box',emoji:'🎁',cost:2000,rarities:['Rare','Epic','Legendary']},
+ {name:'Mythic Box',emoji:'💎',cost:5000,rarities:['Epic','Legendary','Mythic','Ultra']}
+];
+function renderCharacterBoxes(){
+ const root=$('characterboxes'),collection=$('charactercollection');if(!root||!collection)return;
+ root.replaceChildren();collection.replaceChildren();
+ for(const box of characterBoxes){
+  const el=document.createElement('div');el.className='armycard epic';
+  const h=document.createElement('h3');h.textContent=box.emoji+' '+box.name;
+  const p=document.createElement('p');p.className='sub';p.textContent=box.cost.toLocaleString()+' 🪙 · '+box.rarities.join(' / ')+' · Drop rates shown below';
+  const b=document.createElement('button');b.className='btn secondary';b.textContent='🎁 Open 1 · '+box.cost.toLocaleString()+' 🪙';b.onclick=()=>openCharacterBox(box,1);
+  const ten=document.createElement('button');ten.className='btn secondary';ten.textContent='✨ Open 10 · '+(box.cost*10).toLocaleString()+' 🪙';ten.onclick=()=>openCharacterBox(box,10);ten.disabled=Number(kingdom?.coins||0)<box.cost*10;
+  const odds=document.createElement('p');odds.className='sub';
+  odds.textContent=box.name==='Wooden Box'?'70% Squire · 25% Archer · 5% Knight':box.name==='Royal Box'?'65% Knight · 30% Mage · 5% Dragon':'60% Mage · 28% Dragon · 11% Empress · 1% King';
+  el.append(h,p,odds,b,ten);root.append(el);
+ }
+ for(const c of []){const el=document.createElement('div');el.className='armycard '+(c.rarity==='Ultra'||c.rarity==='Mythic'?'legendary':'common');const h=document.createElement('h3');h.textContent=c.emoji+' '+c.name;const p=document.createElement('p');p.className='sub';p.textContent=c.rarity+(c.rarity==='Basic'?' · Starter':' · Locked');el.append(h,p);collection.append(el)}
+}
+
+
+let ownedCharacters=[];
+const charById={rowan:'Squire Rowan',archer:'Forest Archer',knight:'Iron Knight',mage:'Storm Mage',dragon:'Dragon Rider',empress:'Moon Empress',king:'Celestial King'};
+async function loadCharacters(){
+ if(!uid)return;
+ const {data,error}=await db.from('cte_characters').select('character_id,copies,level').eq('user_id',uid);
+ if(error){$('boxresult').textContent='Character inventory unavailable: '+error.message;return}
+ ownedCharacters=data||[];renderOwnedCharacters();
+}
+function renderOwnedCharacters(){
+ const root=$('charactercollection');if(!root)return;root.replaceChildren();
+ if(!ownedCharacters.length){root.textContent='No characters yet — open a box to collect your first one.';return}
+ for(const entry of ownedCharacters){
+  const char=characterRoster.find(c=>c.name===charById[entry.character_id]);
+  const card=document.createElement('div');card.className='armycard '+(char?.rarity==='Mythic'||char?.rarity==='Ultra'?'legendary':'rare');
+  card.textContent=(char?.emoji||'🎴')+' '+(char?.name||entry.character_id)+' · '+(char?.rarity||'Unknown')+' · Lv.'+(entry.level||1)+' ×'+entry.copies;
+  const upgrade=document.createElement('button');upgrade.className='btn secondary';upgrade.textContent='⬆️ Evolve · '+(entry.level||1)*250+' 🪙 + duplicate';upgrade.disabled=entry.copies<2||entry.level>=20||Number(kingdom?.coins)<(entry.level||1)*250;upgrade.onclick=()=>upgradeHero(entry.character_id);card.append(upgrade);
+  root.append(card);
+ }
+}
+async function loadDaily(){
+ if(!uid)return;
+ const {data,error}=await db.from('cte_daily_claims').select('claimed_on').eq('user_id',uid).maybeSingle();
+ const btn=$('dailyclaim'),msg=$('dailystatus');
+ if(error){btn.disabled=true;msg.textContent='Daily claim status unavailable: '+error.message;return}
+ const today=new Date().toISOString().slice(0,10),claimed=data?.claimed_on===today;
+ btn.disabled=claimed;msg.textContent=claimed?'✓ Claimed today. Return tomorrow (UTC).':'🎁 Your free 750 coins are ready!';
+}
+async function claimDaily(){
+ const btn=$('dailyclaim');btn.disabled=true;
+ try{
+  const {data,error}=await db.rpc('cte_daily_reward');if(error)throw error;
+  notice('🎉 +'+data.coins_awarded+' coins!');await rpc('sync');await loadDaily();
+ }catch(e){notice(e.message,true);await loadDaily()}
+}
+$('dailyclaim').onclick=claimDaily;
+async function upgradeHero(id){
+ try{
+  const {data,error}=await db.rpc('cte_upgrade_hero',{p_character:id});if(error)throw error;
+  notice('✨ Hero evolved to level '+data.level+'!');
+  await rpc('sync');await loadCharacters();
+ }catch(e){notice(e.message,true)}
+}
+async function openCharacterBox(box,count=1){
+ const type=box.name==='Wooden Box'?'wooden':box.name==='Royal Box'?'royal':'mythic';
+ if(!confirm('Open '+count+' '+box.name+' for '+(box.cost*count).toLocaleString()+' coins?'))return;
+ try{
+  const {data,error}=await db.rpc('cte_open_boxes',{p_box:type,p_count:count});if(error)throw error;
+  const drops=data.characters||[];
+  const names=drops.map(id=>{const hero=characterRoster.find(c=>c.name===charById[id]);return (hero?.emoji||'🎴')+' '+(charById[id]||id)});
+  $('boxresult').textContent='✨ SUMMON SUCCESS! '+names.join(' · ')+' | Treasury: '+Number(data.coins).toLocaleString()+' coins';
+  await rpc('sync');await loadCharacters();await loadQuests();await loadAchievements();
+ }catch(e){notice(e.message,true)}
+}
+async function loadFreeBox(){
+ if(!uid)return;
+ const {data,error}=await db.from('cte_free_box_claims').select('claimed_on').eq('user_id',uid).maybeSingle();
+ const b=$('freeboxbtn'),label=$('freeboxstatus');if(!b)return;
+ if(error){b.disabled=true;label.textContent='Cannot check free summon: '+error.message;return}
+ const claimed=data?.claimed_on===new Date().toISOString().slice(0,10);
+ b.disabled=claimed;label.textContent=claimed?'✓ Free summon collected today. Come back tomorrow (UTC)!':'Your daily free character is ready!';
+}
+async function claimFreeBox(){
+ const b=$('freeboxbtn');b.disabled=true;
+ try{
+  const {data,error}=await db.rpc('cte_free_box');if(error)throw error;
+  $('boxresult').textContent='🌟 FREE SUMMON: '+(charById[data.character_id]||data.character_id)+'!';
+  await loadCharacters();await loadQuests();await loadFreeBox();notice('🎁 Your free hero is now saved online!');
+ }catch(e){notice(e.message,true);await loadFreeBox()}
+}
+$('freeboxbtn').addEventListener('click',claimFreeBox);
+async function buildKingdom(type){
+ try{
+  const {data,error}=await db.rpc('cte_build',{p_building:type});if(error)throw error;
+  notice('🏗️ '+type+' upgraded to level '+data.level+'!');
+  await rpc('sync');
+ }catch(e){notice(e.message,true)}
+}
+function renderBuildings(){
+ const root=$('buildings');if(!root||!kingdom)return;root.replaceChildren();
+ for(const [type,label,emoji,price,benefit] of [['mine','Gold Mine','⛏️',500,'+0.25 power/min and +2 coins/min (collect in Coins)'],['wall','Castle Walls','🏰',700,'+100 defense'],['barracks','Training Barracks','⚔️',900,'+25 power per upgrade']]){
+  const level=Number(kingdom[type+'_level']||1),cost=level*price;
+  const card=document.createElement('div');card.className='armycard common';
+  const heading=document.createElement('h3');heading.textContent=emoji+' '+label+' Lv.'+level;
+  const desc=document.createElement('p');desc.className='sub';desc.textContent=benefit+' · next upgrade '+cost.toLocaleString()+' coins';
+  const btn=document.createElement('button');btn.className='btn secondary';btn.textContent='⬆️ Upgrade';btn.disabled=Number(kingdom.coins)<cost;btn.onclick=()=>buildKingdom(type);
+  card.append(heading,desc,btn);root.append(card);
+ }
+}
+
+
+const ACHIEVEMENTS=[
+ {id:'first_recruits',icon:'⚔️',title:'Army Commander',desc:'Recruit at least 10 total troops',reward:1000,eligible:()=>Number(kingdom?.swords||0)+Number(kingdom?.archers||0)+Number(kingdom?.cavalry||0)>=10},
+ {id:'wealthy',icon:'💰',title:'Golden Treasury',desc:'Hold 15,000 coins at once',reward:1200,eligible:()=>Number(kingdom?.coins||0)>=15000},
+ {id:'builder',icon:'🏰',title:'Master Builder',desc:'Reach six combined building levels',reward:1500,eligible:()=>['mine','wall','barracks'].reduce((n,k)=>n+Number(kingdom?.[k+'_level']||1),0)>=6},
+ {id:'first_victory',icon:'🏆',title:'First Conquest',desc:'Win a real online battle',reward:2000,eligible:()=>battleWins>0}
+];
+let claimedAchievements=new Set(),battleWins=0;
+async function loadAchievements(){
+ if(!uid||!kingdom)return;
+ const [claimResult,battleResult]=await Promise.all([
+  db.from('cte_achievements').select('achievement_id').eq('user_id',uid),
+  db.from('cte_battle_log').select('id',{count:'exact',head:true}).eq('attacker',uid).eq('victory',true)
+ ]);
+ if(claimResult.error){$('achievements').textContent='Achievements unavailable: '+claimResult.error.message;return}
+ claimedAchievements=new Set((claimResult.data||[]).map(x=>x.achievement_id));
+ battleWins=battleResult.count||0;renderAchievements();
+}
+function renderAchievements(){
+ const root=$('achievements');if(!root)return;root.replaceChildren();
+ for(const a of ACHIEVEMENTS){
+  const claimed=claimedAchievements.has(a.id),eligible=a.eligible();
+  const card=document.createElement('div');card.className='armycard '+(claimed?'rare':'common');
+  const title=document.createElement('h3');title.textContent=a.icon+' '+a.title;
+  const desc=document.createElement('p');desc.className='sub';desc.textContent=a.desc;
+  const button=document.createElement('button');button.className='btn secondary';button.textContent=claimed?'✓ Claimed':eligible?'Claim '+a.reward.toLocaleString()+' 🪙':'🔒 '+a.reward.toLocaleString()+' 🪙';button.disabled=claimed||!eligible;button.onclick=()=>claimAchievement(a.id);
+  card.append(title,desc,button);root.append(card);
+ }
+}
+async function claimAchievement(id){
+ try{
+  const {data,error}=await db.rpc('cte_claim_achievement',{p_id:id});if(error)throw error;
+  notice('🏅 Achievement completed! +'+data.coins_awarded.toLocaleString()+' coins');
+  await rpc('sync');await loadAchievements();
+ }catch(e){notice(e.message,true)}
+}
+
+const QUESTS=[
+ {id:'battle',title:'⚔️ Fight 1 battle',target:1,xp:40},
+ {id:'train',title:'🏹 Recruit 3 troops',target:3,xp:45},
+ {id:'pack',title:'🎴 Open 1 character box',target:1,xp:35}
+];
+let questData={date:'',counts:{},claimed:[],xp:0};
+function initQuests(){loadQuests()}
+async function loadQuests(){
+ if(!uid)return;
+ const {data,error}=await db.from('cte_quest_progress').select('xp,battle_count,recruit_count,pack_count,claimed,quest_day').eq('user_id',uid).maybeSingle();
+ if(error){notice('Quests unavailable: '+error.message,true);return}
+ const today=new Date().toISOString().slice(0,10),fresh=data?.quest_day===today;
+ questData={date:today,counts:{battle:fresh?(data?.battle_count||0):0,train:fresh?(data?.recruit_count||0):0,pack:fresh?(data?.pack_count||0):0},claimed:fresh?Object.keys(data?.claimed||{}):[],xp:data?.xp||0};
+ renderQuests();
+}
+function recordQuest(){loadQuests()}
+async function claimQuest(id){
+ try{
+ const {data,error}=await db.rpc('cte_claim_quest',{p_quest:id});if(error)throw error;
+ notice('🎟️ +'+data.earned+' server-saved Battle Pass XP!');
+ await loadQuests();
+ }catch(e){notice(e.message,true)}
+}
+function renderQuests(){
+ const root=$('questlist');if(!root)return;root.replaceChildren();
+ for(const q of QUESTS){
+  const n=Math.min(q.target,questData.counts[q.id]||0),done=questData.claimed.includes(q.id);
+  const box=document.createElement('div');box.className='armycard common';
+  const title=document.createElement('h3');title.textContent=q.title;
+  const text=document.createElement('p');text.className='sub';text.textContent=n+'/'+q.target+' • +'+q.xp+' XP';
+  const btn=document.createElement('button');btn.className='btn secondary';btn.textContent=done?'✓ Claimed':'Claim reward';btn.disabled=done||n<q.target;btn.onclick=()=>claimQuest(q.id);
+  box.append(title,text,btn);root.append(box);
+ }
+ const level=Math.min(20,Math.floor(questData.xp/100)+1);
+ $('passprogress').textContent='🎟️ Server-saved pass level '+level+'/20 • '+questData.xp+' total XP • '+(questData.xp%100)+'/100 XP to next level';
+ const rewards=$('passrewards');rewards.replaceChildren();
+ for(let i=1;i<=20;i++){
+  const card=document.createElement('div');card.className='armycard '+(i<=level?'rare':'common');
+  card.textContent=(i<=level?'🔓':'🔒')+' Level '+i+' · '+(i%5===0?'🏰 Royal castle decoration':'🎨 Troop banner')+' (preview only)';
+  rewards.append(card);
+ }
+}
+
+const skillNames=['⚡ Thunder Strike','🔥 Dragon Fire','🛡️ Iron Wall','❄️ Frost Storm','🌠 Royal Judgment'];
+const skillBase=[8,10,12,14,16];
+const skillReady=new Map();
+function skillCooldown(index){const rarity=Math.max(0,Math.min(6,Number(kingdom?.rarity||0)));return Math.min(30,skillBase[index]+rarity*3);}
+function renderSkills(){
+ const root=$('skillbuttons');if(!root||!kingdom)return;root.replaceChildren();
+ for(let i=0;i<5;i++){
+  const unlocked=Number(kingdom.level)>=(i+1)*20;
+  const box=document.createElement('div');box.className='armycard '+['common','common','rare','epic','legendary','legendary','legendary'][Math.min(6,Number(kingdom.rarity||0))];
+  const title=document.createElement('h3');title.textContent=skillNames[i];
+  const sub=document.createElement('p');sub.className='sub';
+  const b=document.createElement('button');b.className='btn secondary';
+  const remaining=Math.max(0,Math.ceil(((skillReady.get(i)||0)-Date.now())/1000));
+  sub.textContent='Unlock Lv.'+((i+1)*20)+' · '+skillCooldown(i)+'s cooldown';
+  b.textContent=!unlocked?'🔒 Locked':remaining?'⏳ '+remaining+'s':'✨ Use skill';
+  b.disabled=!unlocked||remaining>0;b.onclick=()=>useSkill(i);
+  box.append(title,sub,b);root.append(box);
+ }
+}
+function useSkill(i){
+ if(!kingdom||Number(kingdom.level)<(i+1)*20)return;
+ if(Date.now()<(skillReady.get(i)||0))return;
+ const secs=skillCooldown(i);skillReady.set(i,Date.now()+secs*1000);
+ $('skillmessage').textContent=skillNames[i]+' activated! ✨ Visual effect only; server combat bonus coming later.';
+ const stage=$('warstage');if(stage){const burst=document.createElement('span');burst.className='war-burst';burst.textContent=['⚡','🔥','🛡️','❄️','🌠'][i];stage.append(burst);setTimeout(()=>burst.remove(),600);}
+ renderSkills();
+}
+setInterval(()=>{if(kingdom)renderSkills()},1000);
+function renderFriendSearch(players){
+ const root=$('friendsearch');if(!root)return;root.replaceChildren();
+ const label=document.createElement('p');label.textContent='Choose a kingdom to add:';root.append(label);
+ const sel=document.createElement('select');sel.id='friendselect';sel.style.cssText='width:100%;padding:12px;border-radius:10px;background:#101c30;color:white';
+ for(const p of players.filter(p=>p.user_id!==uid)){const opt=document.createElement('option');opt.value=p.user_id;opt.textContent=p.kingdom_name;sel.append(opt)}
+ const btn=document.createElement('button');btn.className='btn secondary';btn.textContent='➕ Add friend';btn.disabled=!sel.options.length;btn.onclick=()=>sendFriend(sel.value);
+ root.append(sel,btn);
+}
+async function sendFriend(recipient){
+ if(!uid||!recipient||uid===recipient)return;
+ const {error}=await db.from('cte_friends').insert({requester:uid,recipient,status:'pending'});
+ if(error)return notice(error.code==='23505'?'Friend request already exists':error.message,true);
+ notice('Friend request sent!');await loadFriends();
+}
+async function respondFriend(requester,status){
+ const {error}=await db.from('cte_friends').update({status}).eq('requester',requester).eq('recipient',uid);
+ if(error)return notice(error.message,true);await loadFriends();
+}
+async function loadFriends(){
+ if(!uid)return;
+ const {data,error}=await db.from('cte_friends').select('requester,recipient,status').or('requester.eq.'+uid+',recipient.eq.'+uid);
+ if(error){$('friendrequests').textContent='Friends unavailable: '+error.message;return}
+ const ids=[...new Set((data||[]).flatMap(f=>[f.requester,f.recipient]))];
+ const {data:people}=ids.length?await db.from('cte_kingdoms').select('user_id,kingdom_name').in('user_id',ids):{data:[]};
+ const names=new Map((people||[]).map(p=>[p.user_id,p.kingdom_name]));
+ const requests=$('friendrequests'),friends=$('friendlist');requests.replaceChildren();friends.replaceChildren();
+ const pending=(data||[]).filter(f=>f.recipient===uid&&f.status==='pending');
+ if(!pending.length)requests.textContent='No new requests';
+ for(const f of pending){
+  const row=document.createElement('div');row.className='enemy';row.textContent='🏰 '+(names.get(f.requester)||'Conqueror')+' ';
+  for(const [label,status] of [['Accept','accepted'],['Decline','declined']]){const b=document.createElement('button');b.className='btn secondary';b.textContent=label;b.onclick=()=>respondFriend(f.requester,status);row.append(b)}
+  requests.append(row);
+ }
+ const accepted=(data||[]).filter(f=>f.status==='accepted');
+ if(!accepted.length)friends.textContent='No accepted friends yet';
+ for(const f of accepted){
+  const id=f.requester===uid?f.recipient:f.requester;
+  const row=document.createElement('div');row.className='enemy';row.textContent='🤝 '+(names.get(id)||'Conqueror')+' ';
+  const b=document.createElement('button');b.className='btn secondary';b.textContent='⚔️ Challenge';b.onclick=()=>act('attack',id);row.append(b);friends.append(row);
+ }
+}
+
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+let battling=false;
+function armySprites(p){
+ const n=Math.max(1,Math.min(12,Number(p?.swords||0)+Number(p?.archers||0)+Number(p?.cavalry||0)));
+ const types=[];
+ for(const [type,count] of [['🗡️',p?.swords||0],['🏹',p?.archers||0],['🐎',p?.cavalry||0]])for(let i=0;i<Math.min(5,count);i++)types.push(type);
+ if(!types.length)types.push('🛡️','⚔️','🪖');
+ return Array.from({length:Math.min(12,Math.max(3,n))},(_,i)=>types[i%types.length]);
+}
+function fillArmy(id,units){const root=$(id);root.replaceChildren();for(const emoji of units){const s=document.createElement('span');s.className='war-unit';s.textContent=emoji;root.append(s)}}
+async function marchOnMap(target){
+ const map=$('worldmap'),tiles=[...map.querySelectorAll('.tile')],players=worldPlayers;
+ const from=tiles.find(t=>t.title.startsWith(kingdom.kingdom_name+' •'));
+ const to=tiles.find(t=>t.title.startsWith((target?.kingdom_name||'__unknown')+' •'));
+ if(!from||!to)return;
+ const box=map.getBoundingClientRect(),a=from.getBoundingClientRect(),b=to.getBoundingClientRect();
+ const mover=document.createElement('div');mover.className='map-marcher';mover.textContent='🐎⚔️';mover.style.left=(a.left-box.left+a.width/2-25)+'px';mover.style.top=(a.top-box.top+a.height/2-15)+'px';map.append(mover);
+ $('battletext').textContent='🐎 Your army is marching across the kingdom map…';
+ await wait(80);mover.style.left=(b.left-box.left+b.width/2-25)+'px';mover.style.top=(b.top-box.top+b.height/2-15)+'px';
+ await wait(1650);mover.remove();
+}
+async function animateBattle(outcome,enemy,ours){
+ show('battlefield',true);
+ $('battlefield').scrollIntoView({behavior:'smooth',block:'center'});
+ const stage=$('warstage');stage.className='war-stage';$('yourarmy').classList.remove('loser');$('enemyarmy').classList.remove('loser');
+ fillArmy('yourarmy',armySprites(ours));fillArmy('enemyarmy',armySprites(enemy));
+ $('yourhp').style.width='100%';$('enemyhp').style.width='100%';
+ $('battletext').textContent='⚔️ Armies advance!';
+ await wait(500);stage.classList.add('clash');await wait(800);
+ stage.classList.add('strike');
+ for(let i=0;i<5;i++){
+  const arrow=document.createElement('span');arrow.className='war-projectile';arrow.textContent=i%2?'🔥':'➶';stage.append(arrow);
+  const burst=document.createElement('span');burst.className='war-burst';burst.textContent='💥';stage.append(burst);
+  $('battletext').textContent=['🏹 Archers fire!','⚔️ Swords clash!','🐎 Cavalry charge!','💥 Heavy fighting!','🏰 Final strike!'][i];
+  $(outcome.victory?'enemyhp':'yourhp').style.width=(100-(i+1)*19)+'%';
+  await wait(450);arrow.remove();burst.remove();
+ }
+ stage.classList.remove('strike');stage.classList.add('finished');
+ $(outcome.victory?'enemyarmy':'yourarmy').classList.add('loser');
+ $('battletext').textContent=outcome.victory?'🏆 VICTORY! You conquered the enemy kingdom!':'💀 DEFEAT! Your army has fallen.';
+ await wait(1100);
+}
+
+async function act(action,target=null){
+ if(battling)return;
+ try{
+  if(action==='attack'&&!confirm('Attack this online kingdom? Battles can change your power and coins.'))return;
+  if(action==='attack'){
+   battling=true;
+   const enemy=worldPlayers.find(p=>p.user_id===target);
+   const ours={...kingdom};
+   show('battlefield',true);
+   await marchOnMap(enemy);
+   $('battletext').textContent='Connecting to battle server…';
+   const {data:outcome,error:battleError}=await db.rpc('cte_attack',{p_target:target});if(battleError)throw battleError;
+   await animateBattle(outcome,enemy||{kingdom_name:'Friend kingdom'},ours);recordQuest('attack');await rpc('sync');
+   notice(outcome.victory?'Victory!':'Defeat!');
+  }else{
+   const outcome=await rpc(action,target);
+   if(action==='army_pack')$('cardresult').textContent='✨ '+(outcome.card||'New card unlocked')+'!';
+   recordQuest(action);notice(action==='tutorial'?'Tutorial outpost conquered!':'Action completed!');
+  }
+  await loadWorld();
+ }catch(e){notice(e.message,true);if(action==='attack')$('battletext').textContent='⚠️ Battle could not start: '+e.message}
+ finally{battling=false}
+}
+
+$('signup').onclick=()=>authenticate('signup').catch(e=>{authMessage(e.message);notice(e.message,true)});$('signin').onclick=()=>authenticate('signin').catch(e=>{authMessage(e.message);notice(e.message,true)});
+$('resend').onclick=async()=>{const email=$('email').value.trim();if(!email.includes('@'))return authMessage('Enter your email address first.');const button=$('resend');button.disabled=true;authMessage('Requesting another confirmation email…');try{const {error}=await db.auth.resend({type:'signup',email});if(error)throw error;authMessage('Confirmation email requested. Check Spam/Junk too. Delivery depends on the server email settings.');notice('Confirmation email requested')}catch(e){authMessage('Could not resend: '+e.message);notice(e.message,true)}finally{button.disabled=false}};
+$('authhelp').onclick=()=>show('authguide',$('authguide').classList.contains('hidden'));
+$('reset').onclick=async()=>{const email=$('email').value.trim();if(!email.includes('@'))return notice('Enter your email first',true);const {error}=await db.auth.resetPasswordForEmail(email);authMessage(error?error.message:'Password reset requested. Check inbox and spam. Delivery depends on the server email settings.');notice(error?error.message:'Password reset requested',!!error)};
+
+async function loadOutpost(){
+ if(!uid)return;
+ const {data,error}=await db.from('cte_tutorial_rewards').select('completed_at').eq('user_id',uid).maybeSingle();
+ if(error){$('outpoststatus').textContent='Tutorial status unavailable: '+error.message;return}
+ const done=!!data;
+ $('tutorial').disabled=done;
+ $('tutorial').textContent=done?'✅ Tutorial outpost conquered':'🏕️ Conquer tutorial outpost · +5 ⚡ +600 🪙';
+ $('outpoststatus').textContent=done?'Your one-time outpost victory is saved online.':'Defeat the training outpost once for a permanent reward.';
+}
+async function conquerOutpost(){
+ const btn=$('tutorial');btn.disabled=true;
+ try{
+  const {data,error}=await db.rpc('cte_conquer_outpost');if(error)throw error;
+  $('outpoststatus').textContent='⚔️ VICTORY! +'+data.coins_awarded+' coins and +'+data.power_awarded+' power.';
+  notice('🏆 Outpost conquered!');await rpc('sync');await loadOutpost();await loadCoinCenter();
+ }catch(e){notice(e.message,true);await loadOutpost();await loadCoinCenter()}
+}
+async function buyShield(){
+ if(!confirm('Spend 5,000 coins for 24 hours of protection and +1,000 defense?'))return;
+ const btn=$('buyshield');btn.disabled=true;
+ try{
+  const {data,error}=await db.rpc('cte_buy_shield');if(error)throw error;
+  $('shieldpurchase').textContent='🛡️ Protected until '+new Date(data.shield_until).toLocaleString();
+  notice('Castle shield activated!');await rpc('sync');await loadWorld();
+ }catch(e){notice(e.message,true)}finally{btn.disabled=false}
+}
+$('tutorial').onclick=conquerOutpost;
+$('buyshield').onclick=buyShield;
+
+$('logout').onclick=async()=>{clearInterval(refreshTimer);await db.auth.signOut();uid=null;kingdom=null;show('game',false);show('create',false);show('setup',true);status('🔐 Signed out')};
+$('found').onclick=async()=>{try{await rpc('create',null,$('kingdomName').value,$('rulerName').value);show('create',false);show('game',true);initQuests();await loadWorld();await loadFriends();await loadCharacters();await loadQuests();await loadDaily();await loadAchievements();await loadFreeBox();await loadOutpost();await loadCoinCenter();await loadCoinCenter();notice('Your kingdom is born!')}catch(e){notice(e.message,true)}};$('refresh').onclick=()=>act('sync');document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>act(b.dataset.action));boot().catch(e=>{status('🔴 Could not connect');notice(e.message,true)});
+
+
+// Gold Rush v1.9 — server-awarded coins only.
+async function loadCoinCenter(){
+ if(!uid||!kingdom)return;
+ const [mine,caravan]=await Promise.all([
+  db.from('cte_mine_claims').select('last_claim').eq('user_id',uid).maybeSingle(),
+  db.from('cte_caravan_raids').select('last_raid').eq('user_id',uid).maybeSingle()
+ ]);
+ const minebtn=$('claimmine'),caravanbtn=$('raidcaravan');
+ if(mine.error){$('mineinfo').textContent=mine.error.message;minebtn.disabled=true;}
+ else{
+  const time=mine.data?new Date(mine.data.last_claim):new Date(Date.now()-3600000);
+  const minutes=Math.min(1440,Math.max(0,Math.floor((Date.now()-time.getTime())/60000)));
+  const coins=minutes*2*Math.max(1,Number(kingdom.mine_level)||1);
+  $('mineinfo').textContent='⛏️ Level '+(kingdom.mine_level||1)+' · About '+fmt(coins)+' coins ready ('+minutes+' minute'+(minutes!==1?'s':'')+').';
+  minebtn.disabled=minutes<1;
+ }
+ if(caravan.error){$('caravaninfo').textContent=caravan.error.message;caravanbtn.disabled=true;}
+ else{
+  const elapsed=caravan.data?Date.now()-new Date(caravan.data.last_raid).getTime():Infinity;
+  const wait=Math.max(0,Math.ceil((300000-elapsed)/1000));
+  const strength=Number(kingdom.power)+Number(kingdom.swords)*3+Number(kingdom.archers)*5+Number(kingdom.cavalry)*10;
+  $('caravaninfo').textContent=wait>0?'🐎 Caravan returns in '+Math.ceil(wait/60)+' min.':'🐎 Caravan ready! Your army strength: '+fmt(strength);
+  caravanbtn.disabled=wait>0||strength<15;
+ }
+}
+async function earnCoins(action){
+ const btn=$(action==='cte_claim_mine'?'claimmine':'raidcaravan');btn.disabled=true;
+ try{
+  const {data,error}=await db.rpc(action);if(error)throw error;
+  $('coinresult').textContent='🎉 +'+fmt(data.coins_awarded)+' coins added to your treasury!';
+  notice('🪙 +'+fmt(data.coins_awarded)+' coins earned!');
+  await rpc('sync');await loadCoinCenter();await loadAchievements();
+ }catch(e){$('coinresult').textContent=e.message;notice(e.message,true);await loadCoinCenter();}
+}
+$('claimmine').onclick=()=>earnCoins('cte_claim_mine');
+$('raidcaravan').onclick=()=>earnCoins('cte_raid_caravan');
+$('goRewards').onclick=()=>showRoyalTab('rewards');
+
+const tabInfo={
+ overview:['Your empire','Your kingdom at a glance'],
+ war:['World conquest','Find rival kingdoms and inspect battle reports'],
+ army:['Train your army','Recruit and strengthen your troops'],
+ kingdom:['Build your kingdom','Upgrade your production and defenses'],
+ treasury:['Gold treasury','Earn and collect coins from mines and caravans'],
+ heroes:['Your hero collection','Collect and evolve legendary champions'],
+ rewards:['Daily rewards','Claim quests and level up your Battle Pass'],
+ social:['Friends & rankings','Find friends and rise through the ranks']
+};
+let currentTab='overview';
+function initRoyalNavigation(){
+ const game=document.getElementById('game'),nav=document.getElementById('gameNav');
+ if(!game||!nav)return;
+ const sections=[...game.querySelectorAll('section.panel')];
+ for(const panel of sections){
+  const title=(panel.querySelector('h2')?.textContent||'').toLowerCase();
+  let tab='overview';
+  if(/world conquest|battles|battle reports/.test(title))tab='war';
+  else if(/army battle|army barracks|power & training|conqueror skills|royal market/.test(title))tab='army';
+  else if(/kingdom builder/.test(title))tab='kingdom';
+  else if(/gold treasury/.test(title))tab='treasury';
+  else if(/character boxes|character collection|character inventory|your characters/.test(title))tab='heroes';
+  else if(/daily kingdom gift|daily quests|battle pass|daily rewards/.test(title))tab='rewards';
+  else if(/friends|leaderboard|friend requests/.test(title))tab='social';
+  panel.dataset.tab=tab;panel.classList.add('game-section');
+ }
+ for(const grid of game.querySelectorAll('.grid')){
+  grid.dataset.multitab='true';
+ }
+ const heading=document.createElement('div');heading.id='tabHeading';heading.className='section-heading';
+ const title=document.createElement('h2');title.id='tabTitle';
+ const description=document.createElement('p');description.id='tabDescription';
+ heading.append(title,description);
+ const banner=game.querySelector('.royal-banner');banner.after(heading);
+ const actions=document.createElement('div');actions.className='quick-actions';actions.id='quickActions';heading.after(actions);
+ for(const [tab,icon,label] of [['war','⚔️','Find a battle'],['heroes','🎴','Open boxes'],['kingdom','🏰','Upgrade castle'],['treasury','🪙','Earn coins'],['rewards','🎁','Claim rewards']]){
+  const button=document.createElement('button');button.className='btn secondary';button.textContent=icon+' '+label;button.onclick=()=>showRoyalTab(tab);actions.append(button);
+ }
+ for(const button of nav.querySelectorAll('[data-tab]'))button.addEventListener('click',()=>showRoyalTab(button.dataset.tab));
+ showRoyalTab('overview',false);
+}
+function showRoyalTab(tab,scroll=true){
+ currentTab=tab;
+ const nav=document.getElementById('gameNav');if(!nav)return;
+ nav.classList.toggle('hidden',document.getElementById('game')?.classList.contains('hidden'));
+ for(const button of nav.querySelectorAll('[data-tab]')){const active=button.dataset.tab===tab;button.classList.toggle('active',active);button.setAttribute('aria-current',active?'page':'false')}
+ const info=tabInfo[tab]||tabInfo.overview;
+ document.getElementById('tabTitle').textContent=info[0];
+ document.getElementById('tabDescription').textContent=info[1];
+ const game=document.getElementById('game');
+ for(const panel of game.querySelectorAll('section.panel'))panel.classList.toggle('hidden',panel.dataset.tab!==tab);
+ for(const grid of game.querySelectorAll('.grid'))grid.classList.toggle('hidden',![...grid.querySelectorAll('section.panel')].some(p=>p.dataset.tab===tab));
+ for(const child of game.children){
+  if(child.classList.contains('stats')||child.classList.contains('royal-banner')||child.classList.contains('topline'))child.classList.toggle('hidden',tab!=='overview');
+ }
+ document.getElementById('quickActions').classList.toggle('hidden',tab!=='overview');
+ if(scroll)window.scrollTo({top:0,behavior:'smooth'});
+}
+function syncRoyalNav(){
+ const active=!document.getElementById('game').classList.contains('hidden');
+ document.getElementById('gameNav').classList.toggle('hidden',!active);
+}
+new MutationObserver(syncRoyalNav).observe(document.getElementById('game'),{attributes:true,attributeFilter:['class']});
+initRoyalNavigation();
+</script></body></html>
