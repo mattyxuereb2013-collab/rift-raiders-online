@@ -1013,7 +1013,7 @@ async function loadBattleDeck(){
  const {data,error}=await db.from('cte_battle_decks').select('cards').eq('user_id',uid).maybeSingle();
  if(error){$('deckStatus').textContent=error.message;return}
  activeDeck=(data?.cards||[]).filter(hasDeckCard);
- deckLoaded=!!data;renderBattleDeck();
+ deckLoaded=!!data;renderBattleDeck();renderLaunchJourney();
 }
 function renderBattleDeck(){
  const root=$('deckGrid');if(!root)return;root.replaceChildren();
